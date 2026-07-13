@@ -1,0 +1,186 @@
+/* 人生タイマー データ永続化 — localStorage互換オブジェクトを引数に取るDOM非依存実装 */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.LifeStore = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const KEY = 'life-timer-v1';
+  const GENDERS = ['male', 'female'];
+  const FREQ_RE = /^(daily|weekly|monthly|yearly-\d+)$/;
+  const RELATIONSHIP_RE = /^(child|parent|spouse|sibling|friend|other)$/;
+  const PRIORITIES_REQUIRED = ['家族', '仕事', '自分', '余暇', '睡眠'];
+
+  function emptyData() {
+    return { version: 1, self: null, family: [], wishes: [], today: null, priorities: null, streak: null, reflections: [], gacha: null };
+  }
+
+  function isDateFormat(s) {
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+
+  function isValidDateStr(s) {
+    if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const d = new Date(s + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    if (d > now) return false;
+    if (now.getFullYear() - d.getFullYear() > 150) return false;
+    // ラウンドトリップ検証: 入力の年月日と解析後の年月日が一致することを確認
+    const [year, month, day] = s.split('-').map(Number);
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== month || d.getDate() !== day) return false;
+    return true;
+  }
+
+  function validPerson(p) {
+    if (!p || typeof p !== 'object') return '人物データが不正です';
+    if (!isValidDateStr(p.birthDate)) return '誕生日が不正です(未来日付・150年以上前は不可)';
+    if (!GENDERS.includes(p.gender)) return '性別が不正です';
+    if (p.customLifespan != null &&
+        !(typeof p.customLifespan === 'number' && p.customLifespan > 0 && p.customLifespan <= 150)) {
+      return '目標寿命が不正です(1〜150)';
+    }
+    return null;
+  }
+
+  function validate(data) {
+    if (!data || typeof data !== 'object') return { ok: false, error: 'データがオブジェクトではありません' };
+    if (data.version !== 1) return { ok: false, error: '未対応のデータバージョンです' };
+    if (data.self !== null) {
+      const e = validPerson(data.self);
+      if (e) return { ok: false, error: '本人: ' + e };
+    }
+    if (!Array.isArray(data.family)) return { ok: false, error: 'family が配列ではありません' };
+    for (const f of data.family) {
+      if (typeof f.id !== 'string' || f.id === '') return { ok: false, error: '家族のIDが不正です' };
+      const e = validPerson(f);
+      if (e) return { ok: false, error: '家族: ' + e };
+      if (typeof f.name !== 'string' || f.name === '') return { ok: false, error: '家族の名前が空です' };
+      if (typeof f.meetFrequency !== 'string' || !FREQ_RE.test(f.meetFrequency)) {
+        return { ok: false, error: '会う頻度が不正です' };
+      }
+      if (f.relationship != null && !RELATIONSHIP_RE.test(f.relationship)) {
+        return { ok: false, error: '家族の続柄が不正です' };
+      }
+    }
+    if (!Array.isArray(data.wishes)) return { ok: false, error: 'wishes が配列ではありません' };
+    for (const w of data.wishes) {
+      if (!w || typeof w.title !== 'string' || w.title === '') return { ok: false, error: 'やりたいことのタイトルが不正です' };
+      if (typeof w.done !== 'boolean') return { ok: false, error: 'done がboolean ではありません' };
+      if (typeof w.id !== 'string' || w.id === '') return { ok: false, error: 'やりたいことのIDが不正です' };
+      if (typeof w.createdAt !== 'string' || w.createdAt === '') return { ok: false, error: 'createdAt が不正です' };
+      if (w.doneAt !== null && (typeof w.doneAt !== 'string' || w.doneAt === '')) {
+        return { ok: false, error: 'doneAt が不正です' };
+      }
+      if (w.targetAge != null &&
+          !(typeof w.targetAge === 'number' && w.targetAge > 0 && w.targetAge <= 150)) {
+        return { ok: false, error: '目標年齢が不正です(1〜150)' };
+      }
+      if (w.pinned != null && typeof w.pinned !== 'boolean') {
+        return { ok: false, error: 'pinned がboolean ではありません' };
+      }
+    }
+    if (data.priorities != null) {
+      if (!Array.isArray(data.priorities) || data.priorities.length !== PRIORITIES_REQUIRED.length
+          || !PRIORITIES_REQUIRED.every((r) => data.priorities.includes(r))) {
+        return { ok: false, error: 'priorities の内容が不正です' };
+      }
+    }
+    if (data.streak != null) {
+      const s = data.streak;
+      if (typeof s !== 'object' || !isDateFormat(s.last)
+          || !Number.isInteger(s.run) || s.run < 1
+          || !Number.isInteger(s.total) || s.total < 1
+          || s.run > s.total) {
+        return { ok: false, error: 'streak が不正です' };
+      }
+    }
+    if (data.reflections != null) {
+      if (!Array.isArray(data.reflections)) return { ok: false, error: 'reflections が配列ではありません' };
+      for (const r of data.reflections) {
+        if (!r || !isDateFormat(r.date)) return { ok: false, error: '問いの記録の日付が不正です' };
+        if (!Number.isInteger(r.q) || r.q < 0) return { ok: false, error: '問いの記録のindexが不正です' };
+        if (typeof r.text !== 'string' || r.text === '') return { ok: false, error: '問いの記録のテキストが不正です' };
+      }
+    }
+    if (data.today != null) {
+      const t = data.today;
+      if (typeof t !== 'object') return { ok: false, error: 'today が不正です' };
+      if (typeof t.date !== 'string' || t.date === '') return { ok: false, error: '今日の宣言の日付が不正です' };
+      if (typeof t.text !== 'string' || t.text === '') return { ok: false, error: '今日の宣言のテキストが不正です' };
+      if (typeof t.done !== 'boolean') return { ok: false, error: '今日の宣言の done が不正です' };
+    }
+    if (data.gacha != null) {
+      const g = data.gacha;
+      if (typeof g !== 'object') return { ok: false, error: 'gacha が不正です' };
+      if (!isDateFormat(g.date)) return { ok: false, error: 'gacha.date が不正です' };
+      if (!Number.isInteger(g.totalXp) || g.totalXp < 0) return { ok: false, error: 'gacha.totalXp が不正です' };
+      if (g.current != null) {
+        const c = g.current;
+        if (typeof c.id !== 'string' || c.id === '') return { ok: false, error: 'gacha.current.id が不正です' };
+        if (!['N', 'R', 'SR', 'SSR'].includes(c.rarity)) return { ok: false, error: 'gacha.current.rarity が不正です' };
+        if (typeof c.text !== 'string' || c.text === '') return { ok: false, error: 'gacha.current.text が不正です' };
+        if (typeof c.xp !== 'number' || c.xp <= 0) return { ok: false, error: 'gacha.current.xp が不正です' };
+        if (typeof c.done !== 'boolean') return { ok: false, error: 'gacha.current.done が不正です' };
+      }
+      if (!Array.isArray(g.history)) return { ok: false, error: 'gacha.history が配列ではありません' };
+      for (const h of g.history) {
+        if (!isDateFormat(h.date)) return { ok: false, error: 'gacha.history[].date が不正です' };
+        if (!['N', 'R', 'SR', 'SSR'].includes(h.rarity)) return { ok: false, error: 'gacha.history[].rarity が不正です' };
+        if (typeof h.text !== 'string' || h.text === '') return { ok: false, error: 'gacha.history[].text が不正です' };
+      }
+    }
+    return { ok: true };
+  }
+
+  function load(storage) {
+    const raw = storage.getItem(KEY);
+    if (raw === null) return { data: emptyData(), corrupt: false };
+    try {
+      const data = JSON.parse(raw);
+      if (!validate(data).ok) return { data: null, corrupt: true };
+      return { data, corrupt: false };
+    } catch (_) {
+      return { data: null, corrupt: true };
+    }
+  }
+
+  function save(storage, data) {
+    storage.setItem(KEY, JSON.stringify(data));
+  }
+
+  function exportJSON(data) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  function importJSON(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      return { ok: false, error: 'JSONとして読み取れません' };
+    }
+    const v = validate(data);
+    if (!v.ok) return { ok: false, error: v.error };
+    return { ok: true, data };
+  }
+
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // ストリーク更新(純関数)。同日なら同一オブジェクトを返す。totalは決して減らない
+  function advanceStreak(streak, todayStr) {
+    if (streak && streak.last === todayStr) return streak;
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const p = (n) => String(n).padStart(2, '0');
+    const yesterday = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    if (streak && streak.last === yesterday) {
+      return { last: todayStr, run: streak.run + 1, total: streak.total + 1 };
+    }
+    return { last: todayStr, run: 1, total: (streak ? streak.total : 0) + 1 };
+  }
+
+  return { KEY, emptyData, validate, load, save, exportJSON, importJSON, newId, isValidDateStr, advanceStreak };
+});

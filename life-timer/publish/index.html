@@ -1,0 +1,3550 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: 'self'; manifest-src 'self'; worker-src 'self';">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#ff8a3d">
+<meta name="description" content="平均余命から残り時間を秒単位でカウントダウン。家族と「あと何回会えるか」、やりたいことリストで今日を大切にするアプリ。データはすべて端末内に保存され、外部送信はありません。">
+<meta property="og:title" content="人生タイマー — 残り時間を、夢の時間に">
+<meta property="og:description" content="平均余命から残り時間を秒単位でカウントダウン。家族と「あと何回会えるか」、やりたいことリストで今日を大切にする。">
+<meta property="og:type" content="website">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="manifest" href="./manifest.json">
+<title>人生タイマー — 残り時間を、夢の時間に</title>
+<!--
+  人生タイマー / 残り時間の可視化で「今やる」を引き出すアプリ
+  データはすべて端末内(localStorage)に保存され、外部送信は一切ありません
+  出典: 「令和5年簡易生命表」(厚生労働省)を加工して作成
+-->
+<style>
+/* 人生タイマー — warm editorial aesthetic */
+/* System font stack: Noto Serif/Sans JP (pre-installed on Android/macOS/iOS) + fallbacks */
+/* No external font loading — works fully offline within CSP default-src 'none' */
+
+/* ============================================================
+   CSS Variables
+   ============================================================ */
+:root {
+  --orange:       #ff8a3d;
+  --orange-dark:  #e06820;
+  --orange-light: #ffb380;
+  --orange-pale:  #fff1e6;
+  --cream:        #fffdf7;
+  --cream-dark:   #fff8ee;
+  --brown:        #2d1a0e;
+  --brown-mid:    #6b3e1e;
+  --brown-light:  #a0673a;
+  --warm-gray:    #c8b8a8;
+  --warm-gray-lt: #ede5d8;
+  --danger:       #c0392b;
+  --danger-light: #fdf0ee;
+  --white:        #ffffff;
+
+  --font-serif:  'Noto Serif JP', 'Hiragino Mincho ProN', Georgia, serif;
+  --font-sans:   'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+  --font-mono:   'Iosevka', 'JetBrains Mono', 'Courier New', monospace;
+
+  --tab-height:   56px;
+  --safe-bottom:  env(safe-area-inset-bottom, 0px);
+  --page-pad:     20px;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --radius-lg:    20px;
+  --shadow:       0 2px 12px rgba(45, 26, 14, 0.10);
+  --shadow-md:    0 4px 24px rgba(45, 26, 14, 0.15);
+  --shadow-lg:    0 8px 40px rgba(45, 26, 14, 0.20);
+
+  --transition:   0.2s ease;
+}
+
+/* ============================================================
+   Reset & Base
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: 100%;
+  font-size: 16px;
+}
+
+body {
+  min-height: 100%;
+  background: var(--cream);
+  color: var(--brown);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  /* Subtle warm paper texture via repeating gradient */
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(255,138,61,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(255,138,61,0.03) 0%, transparent 60%);
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   App Shell
+   ============================================================ */
+#app {
+  min-height: calc(100vh - var(--tab-height) - var(--safe-bottom));
+  padding-bottom: calc(var(--tab-height) + var(--safe-bottom) + 48px); /* +48 for source-note */
+}
+
+/* ============================================================
+   Screens
+   ============================================================ */
+.screen {
+  display: none;
+  padding: 0 var(--page-pad);
+  animation: screenIn 0.28s ease both;
+}
+
+.screen.active {
+  display: block;
+}
+
+@keyframes screenIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   Typography
+   ============================================================ */
+h1 {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: var(--brown);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-family: var(--font-serif);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--brown);
+  margin-bottom: 16px;
+}
+
+h3 {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brown-mid);
+  margin: 20px 0 10px;
+}
+
+p {
+  font-size: 0.9rem;
+  color: var(--brown-light);
+}
+
+/* ============================================================
+   Tab Bar
+   ============================================================ */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--tab-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--white);
+  border-top: 1.5px solid var(--warm-gray-lt);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+  box-shadow: 0 -2px 16px rgba(45, 26, 14, 0.08);
+}
+
+.tab-btn {
+  flex: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--warm-gray);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transition: color var(--transition), background var(--transition);
+  padding: 0;
+  position: relative;
+  letter-spacing: 0.02em;
+}
+
+.tab-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 40px;
+  height: 2px;
+  background: var(--orange);
+  border-radius: 0 0 2px 2px;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tab-btn.active {
+  color: var(--orange);
+  font-weight: 700;
+}
+
+.tab-btn.active::before {
+  transform: translateX(-50%) scaleX(1);
+}
+
+.tab-btn:active {
+  background: var(--orange-pale);
+}
+
+/* Tab icons (unicode decorative) */
+.tab-btn[data-tab="self"]::after    { content: '◎'; font-size: 1.1rem; }
+.tab-btn[data-tab="family"]::after  { content: '♡'; font-size: 1.1rem; }
+.tab-btn[data-tab="wishes"]::after  { content: '✦'; font-size: 1.1rem; }
+
+/* ============================================================
+   Onboarding
+   ============================================================ */
+#onboarding {
+  padding-top: 64px;
+  padding-bottom: 40px;
+}
+
+#onboarding h1 {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+  /* Orange accent underline on the title */
+  background: linear-gradient(90deg, var(--orange) 0%, var(--orange-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+#onboarding > p {
+  font-size: 0.92rem;
+  color: var(--brown-light);
+  margin-bottom: 36px;
+  line-height: 1.75;
+}
+
+/* ============================================================
+   Forms
+   ============================================================ */
+form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brown-mid);
+  letter-spacing: 0.04em;
+  margin-bottom: 20px;
+}
+
+form input[type="date"],
+form input[type="number"],
+form input[type="text"],
+form select {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--white);
+  border: 1.5px solid var(--warm-gray-lt);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  color: var(--brown);
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+form input:focus,
+form select:focus {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 3px rgba(255, 138, 61, 0.15);
+}
+
+form input::placeholder {
+  color: var(--warm-gray);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+button[type="submit"],
+button:not(.tab-btn):not(.ghost-btn):not(.danger-btn):not(.file-btn):not(#open-settings):not(.quote-banner) {
+  display: inline-block;
+  width: 100%;
+  padding: 14px 20px;
+  background: var(--orange);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+  box-shadow: 0 3px 12px rgba(255, 138, 61, 0.35);
+  margin-top: 4px;
+}
+
+button[type="submit"]:hover,
+button:not(.tab-btn):not(.ghost-btn):not(.danger-btn):not(.file-btn):not(#open-settings):not(.quote-banner):hover {
+  background: var(--orange-dark);
+  box-shadow: 0 4px 16px rgba(255, 138, 61, 0.45);
+}
+
+button[type="submit"]:active,
+button:not(.tab-btn):not(.ghost-btn):not(.danger-btn):not(.file-btn):not(#open-settings):not(.quote-banner):active {
+  transform: scale(0.98);
+}
+
+/* Ghost button */
+.ghost-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  background: transparent;
+  color: var(--brown-light);
+  border: 1.5px solid var(--warm-gray-lt);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+.ghost-btn:hover {
+  border-color: var(--orange-light);
+  color: var(--orange-dark);
+  background: var(--orange-pale);
+}
+
+/* Danger button */
+.danger-btn {
+  display: inline-block;
+  padding: 12px 20px;
+  background: var(--danger-light);
+  color: var(--danger);
+  border: 1.5px solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.danger-btn:hover {
+  background: #fad7d3;
+  border-color: rgba(192, 57, 43, 0.5);
+}
+
+/* File-label button */
+.file-btn {
+  display: inline-block;
+  padding: 12px 20px;
+  background: var(--cream-dark);
+  color: var(--brown-mid);
+  border: 1.5px solid var(--warm-gray-lt);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+  margin-top: 8px;
+}
+
+.file-btn:hover {
+  background: var(--orange-pale);
+  border-color: var(--orange-light);
+}
+
+/* ============================================================
+   Self-Timer Screen (Countdown)
+   ============================================================ */
+#self-timer {
+  padding-top: 48px;
+  text-align: center;
+}
+
+.timer-label {
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 12px;
+}
+
+/* THE COUNTDOWN — star of the show */
+.countdown {
+  font-family: var(--font-mono);
+  font-size: clamp(1.2rem, 7vw, 1.6rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--brown);
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  padding: 28px 16px;
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  margin: 0 0 20px;
+  /* Subtle inner warm glow */
+  border: 1.5px solid var(--orange-pale);
+  position: relative;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+/* Warm shimmer line at top of countdown box */
+.countdown::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--orange-light), var(--orange), var(--orange-light));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* ============================================================
+   Progress Bar
+   ============================================================ */
+.progress-track {
+  height: 8px;
+  background: var(--warm-gray-lt);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--orange-light) 0%, var(--orange) 60%, var(--orange-dark) 100%);
+  border-radius: 999px;
+  transition: width 1s linear;
+  min-width: 2px;
+}
+
+#progress-text {
+  font-size: 0.78rem;
+  color: var(--warm-gray);
+  margin-bottom: 20px;
+  letter-spacing: 0.02em;
+}
+
+.message {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--orange-dark);
+  margin-bottom: 28px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+#open-settings {
+  width: auto;
+  margin-top: 0;
+}
+
+/* ============================================================
+   Settings Panel
+   ============================================================ */
+#settings {
+  padding-top: 40px;
+}
+
+#settings h2 {
+  margin-bottom: 24px;
+}
+
+#settings-form button[type="submit"],
+#settings-form .ghost-btn {
+  display: inline-block;
+  width: auto;
+  margin-right: 10px;
+  margin-top: 8px;
+}
+
+#settings-form button[type="submit"] {
+  padding: 12px 28px;
+}
+
+#export-json {
+  width: auto;
+  display: inline-block;
+  padding: 10px 20px;
+  margin-right: 8px;
+  margin-top: 0;
+  font-size: 0.85rem;
+}
+
+#import-result {
+  margin-top: 12px;
+  font-size: 0.82rem;
+  color: var(--brown-mid);
+  min-height: 20px;
+}
+
+/* ============================================================
+   Corrupt Notice
+   ============================================================ */
+#corrupt-notice {
+  padding-top: 64px;
+  text-align: center;
+}
+
+#corrupt-notice h2 {
+  color: var(--danger);
+  margin-bottom: 12px;
+}
+
+#corrupt-notice p {
+  margin-bottom: 28px;
+  line-height: 1.7;
+}
+
+#corrupt-notice .file-btn,
+#corrupt-notice .danger-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+/* ============================================================
+   Family Screen
+   ============================================================ */
+#screen-family {
+  padding-top: 36px;
+}
+
+#screen-family h1 {
+  margin-bottom: 24px;
+}
+
+#family-list {
+  list-style: none;
+  margin-bottom: 16px;
+}
+
+#family-list li {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1.5px solid var(--warm-gray-lt);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+  animation: cardIn 0.22s ease both;
+}
+
+#family-list li:hover {
+  border-color: var(--orange-light);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.family-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.family-head strong {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brown);
+}
+
+.family-remain {
+  font-size: 0.88rem;
+  color: var(--brown-light);
+  margin: 4px 0 2px;
+}
+
+.family-meets {
+  font-size: 0.82rem;
+  color: var(--brown-light);
+  margin: 0;
+}
+
+.meets-num {
+  font-size: 0.9rem;
+  color: var(--orange-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.child-days {
+  font-size: 0.88rem;
+  color: var(--text);
+  margin: 0.2rem 0 0;
+}
+.child-days strong {
+  color: var(--orange);
+  font-size: 1.1em;
+}
+.family-meets.emphasis .meets-num {
+  font-size: 1.3em;
+}
+
+#family-empty {
+  font-size: 0.88rem;
+  color: var(--warm-gray);
+  text-align: center;
+  padding: 36px 0;
+  line-height: 1.7;
+}
+
+#add-family {
+  display: inline-block;
+  width: auto;
+  padding: 12px 24px;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+/* ============================================================
+   Dialog (Family Edit)
+   ============================================================ */
+dialog {
+  border: none;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px var(--page-pad);
+  width: min(440px, calc(100vw - 32px));
+  background: var(--cream);
+  animation: dialogIn 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+dialog::backdrop {
+  background: rgba(45, 26, 14, 0.45);
+  backdrop-filter: blur(3px);
+}
+
+@keyframes dialogIn {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+#family-form h2 {
+  font-size: 1.3rem;
+  margin-bottom: 20px;
+}
+
+#family-form button {
+  display: inline-block;
+  width: auto;
+  margin-right: 8px;
+  margin-top: 8px;
+  padding: 11px 22px;
+  font-size: 0.9rem;
+}
+
+#family-form button[type="submit"] {
+  box-shadow: 0 2px 10px rgba(255,138,61,0.3);
+}
+
+/* ============================================================
+   Wishes Screen
+   ============================================================ */
+#screen-wishes {
+  padding-top: 36px;
+}
+
+#screen-wishes h1 {
+  margin-bottom: 20px;
+}
+
+#wish-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--white);
+  padding: 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1.5px solid var(--warm-gray-lt);
+  margin-bottom: 20px;
+}
+
+#wish-form label {
+  display: none; /* inputs have placeholder text */
+}
+
+#wish-form input {
+  margin: 0;
+  padding: 11px 14px;
+}
+
+#wish-form button {
+  align-self: flex-end;
+  width: auto;
+  padding: 11px 24px;
+  font-size: 0.9rem;
+  margin-top: 0;
+}
+
+#wish-list,
+#wish-done-list {
+  list-style: none;
+  margin-bottom: 12px;
+}
+
+#wish-list li,
+#wish-done-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  border: 1.5px solid var(--warm-gray-lt);
+  animation: cardIn 0.22s ease both;
+  transition: border-color var(--transition), opacity var(--transition);
+}
+
+#wish-list li:hover {
+  border-color: var(--orange-light);
+}
+
+#wish-done-list li {
+  opacity: 0.6;
+}
+
+.wish-item input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--orange);
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.wish-title {
+  flex: 1;
+  font-size: 0.95rem;
+  color: var(--brown);
+  font-family: var(--font-sans);
+}
+
+.wish-item.done .wish-title {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.wish-remain {
+  font-size: 0.72rem;
+  color: var(--orange);
+  font-weight: 700;
+  background: var(--orange-pale);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+#wish-empty {
+  font-size: 0.88rem;
+  color: var(--warm-gray);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.done-heading {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--warm-gray);
+  margin: 24px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#done-count {
+  font-size: 0.82rem;
+  background: var(--warm-gray-lt);
+  color: var(--brown-light);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* ============================================================
+   Source Note (footer)
+   ============================================================ */
+.source-note {
+  position: fixed;
+  bottom: calc(var(--tab-height) + var(--safe-bottom));
+  left: 0;
+  right: 0;
+  background: var(--cream-dark);
+  border-top: 1px solid var(--warm-gray-lt);
+  font-size: 0.6rem;
+  color: var(--warm-gray);
+  padding: 6px var(--page-pad);
+  text-align: center;
+  line-height: 1.5;
+  z-index: 50;
+  letter-spacing: 0.01em;
+}
+
+/* ============================================================
+   Celebrate — Confetti Burst
+   ============================================================ */
+#celebrate {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  overflow: hidden;
+}
+
+#celebrate:not([hidden]) {
+  display: block;
+}
+
+/* Confetti pieces are injected by JS as span.confetti */
+.confetti {
+  position: absolute;
+  top: -12px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confettiFall var(--dur, 1.2s) var(--delay, 0s) ease-in both;
+}
+
+@keyframes confettiFall {
+  0%   { opacity: 1; transform: translateY(0) rotate(0deg) scaleX(1); }
+  60%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(100vh) rotate(720deg) scaleX(-1); }
+}
+
+/* ============================================================
+   Utility / Misc
+   ============================================================ */
+[hidden] { display: none !important; }
+
+/* Smooth reveal for panels within screen-self */
+#onboarding,
+#self-timer,
+#settings,
+#corrupt-notice {
+  animation: screenIn 0.28s ease both;
+}
+
+/* Spacing helpers */
+.mt-8  { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+
+/* Focus ring for accessibility */
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ============================================================
+   Responsive tweaks (≥ 480px – still mobile first)
+   ============================================================ */
+@media (min-width: 480px) {
+  .countdown {
+    font-size: 1.8rem;
+    letter-spacing: 0.06em;
+  }
+}
+
+@media (min-width: 600px) {
+  :root {
+    --page-pad: 32px;
+  }
+
+  .countdown {
+    font-size: 2rem;
+  }
+
+  #screen-family,
+  #screen-wishes {
+    max-width: 540px;
+    margin: 0 auto;
+  }
+}
+
+/* ============================================================
+   Desktop / Tablet Layout (≥ 768px)
+   ADDITIVE ONLY — existing mobile rules are untouched above.
+   ============================================================ */
+@media (min-width: 768px) {
+  :root {
+    --page-pad: 40px;
+    /* Column max-width for all content */
+    --col-width: 600px;
+  }
+
+  /* Body gets a warm mid-tone to frame the centered column */
+  body {
+    background-color: var(--cream-dark);
+    background-image:
+      radial-gradient(ellipse at 15% 8%,  rgba(255,138,61,0.06) 0%, transparent 55%),
+      radial-gradient(ellipse at 85% 92%, rgba(255,138,61,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse at 50% 50%, rgba(255,248,238,0.80) 0%, transparent 80%);
+  }
+
+  /* ── App shell: centered column with warm paper shadow ── */
+  #app {
+    max-width: var(--col-width);
+    margin: 0 auto;
+    background: var(--cream);
+    box-shadow:
+      0 2px 2px  rgba(45, 26, 14, 0.04),
+      0 8px 32px rgba(45, 26, 14, 0.10),
+      0 0   0 1px rgba(45, 26, 14, 0.04);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    min-height: 100vh;
+  }
+
+  /* ── Screens already fill #app; keep them full-width inside ── */
+  .screen {
+    padding-left: var(--page-pad);
+    padding-right: var(--page-pad);
+  }
+
+  /* ── Remove the narrow max-width set at 600px since #app handles it ── */
+  #screen-family,
+  #screen-wishes {
+    max-width: none;
+    margin: 0;
+  }
+
+  /* ── Tab bar: centered + floating pill over the column ── */
+  .tab-bar {
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--col-width);
+    /* Floating pill: detach from full-width edge, add rounding + shadow */
+    border-top: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow:
+      0 -4px 24px rgba(45, 26, 14, 0.12),
+      0 0 0 1.5px rgba(45, 26, 14, 0.06);
+    overflow: hidden; /* clip children to pill radius */
+  }
+
+  /* ── Source note: also centered under the column ── */
+  .source-note {
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--col-width);
+    border-left:  1px solid var(--warm-gray-lt);
+    border-right: 1px solid var(--warm-gray-lt);
+    border-radius: 0;
+  }
+
+  /* ── Countdown: larger on desktop via clamp ── */
+  .countdown {
+    font-size: clamp(2rem, 3.5vw, 2.6rem);
+    letter-spacing: 0.06em;
+    padding: 36px 24px;
+  }
+
+  /* ── Onboarding & settings: constrain form width for readability ── */
+  #onboarding form,
+  #settings-form {
+    max-width: 420px;
+  }
+
+  /* ── Self-timer: a little more breathing room at top ── */
+  #self-timer {
+    padding-top: 64px;
+  }
+
+  #onboarding {
+    padding-top: 80px;
+  }
+}
+
+/* ============================================================
+   Wide desktop refinements (≥ 1024px)
+   ============================================================ */
+@media (min-width: 1024px) {
+  :root {
+    --col-width: 620px;
+  }
+
+  .countdown {
+    font-size: clamp(2.4rem, 2.8vw, 3rem);
+  }
+}
+
+/* ============================================================
+   Hover environment — pointer device interactions
+   ============================================================ */
+@media (hover: hover) {
+  /* Tab buttons */
+  .tab-btn:hover:not(.active) {
+    color: var(--brown-mid);
+    background: var(--orange-pale);
+  }
+
+  /* Family cards */
+  #family-list li:hover {
+    border-color: var(--orange-light);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  /* Wish list items */
+  #wish-list li:hover {
+    border-color: var(--orange-light);
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
+
+  /* Primary / submit buttons */
+  button[type="submit"]:hover,
+  button:not(.tab-btn):not(.ghost-btn):not(.danger-btn):not(.file-btn):not(#open-settings):not(.quote-banner):hover {
+    background: var(--orange-dark);
+    box-shadow: 0 6px 20px rgba(255, 138, 61, 0.45);
+    transform: translateY(-1px);
+  }
+
+  button[type="submit"]:active,
+  button:not(.tab-btn):not(.ghost-btn):not(.danger-btn):not(.file-btn):not(#open-settings):not(.quote-banner):active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Ghost button enhanced */
+  .ghost-btn:hover {
+    border-color: var(--orange);
+    color: var(--orange-dark);
+    background: var(--orange-pale);
+    transform: translateY(-1px);
+  }
+
+  /* File button */
+  .file-btn:hover {
+    background: var(--orange-pale);
+    border-color: var(--orange-light);
+    transform: translateY(-1px);
+  }
+
+  /* Danger button */
+  .danger-btn:hover {
+    background: #fad7d3;
+    border-color: rgba(192, 57, 43, 0.5);
+    transform: translateY(-1px);
+  }
+
+  /* Form inputs: slightly warmer focus ring on hover */
+  form input[type="date"]:hover,
+  form input[type="number"]:hover,
+  form input[type="text"]:hover,
+  form select:hover {
+    border-color: var(--orange-light);
+  }
+}
+
+/* ── QA修正: レイアウトの細部 ────────────────────── */
+
+/* カウントダウンの時刻部(HH:MM:SS)は途中で折り返さない(日付部との間でのみ折り返す) */
+.countdown-time {
+  white-space: nowrap;
+}
+
+/* wish行: 1行目=チェック+タイトル+削除、2行目=期限タグ(タイトルを潰さない)
+   ※ 既存の #wish-list li (flex) より詳細度を上げるためIDを付ける */
+#wish-list li.wish-item,
+#wish-done-list li.wish-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  row-gap: 6px;
+}
+
+.wish-item label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.wish-item > button {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.wish-title {
+  overflow-wrap: anywhere;
+}
+
+.wish-item .wish-remain {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: start;
+  margin-left: 32px; /* チェックボックス分のインデント */
+}
+
+/* 期限未設定のwishで空のタグ残骸を出さない(行ごと畳む) */
+.wish-remain:empty {
+  display: none;
+}
+
+/* ============================================================
+   格言バナー(わたし画面上部・引用調)
+   ============================================================ */
+.quote-banner {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: linear-gradient(135deg, var(--orange-pale) 0%, var(--cream-dark) 100%);
+  border: none;
+  border-left: 3px solid var(--orange);
+  border-radius: var(--radius-sm);
+  padding: 16px 18px 14px;
+  margin-bottom: 22px;
+  cursor: pointer;
+  font-family: var(--font-serif);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition), box-shadow var(--transition);
+  animation: quoteFade 0.5s ease both;
+}
+.quote-banner::before {
+  content: '“';
+  position: absolute;
+  top: -8px;
+  right: 10px;
+  font-family: Georgia, serif;
+  font-size: 4.5rem;
+  line-height: 1;
+  color: var(--orange-light);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.quote-text {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.7;
+  color: var(--brown);
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+.quote-author {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--brown-light);
+  text-align: right;
+  font-family: var(--font-sans);
+}
+@keyframes quoteFade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (hover: hover) {
+  .quote-banner:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+}
+.quote-banner:active { transform: scale(0.99); }
+
+/* ============================================================
+   見つめるタブ(残り時間を多角的に見せるカード集)
+   ============================================================ */
+#insight-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.insight-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1.5px solid var(--warm-gray-lt);
+  padding: 16px 18px;
+  animation: cardIn 0.22s ease both;
+}
+.insight-label {
+  font-size: 0.8rem;
+  color: var(--brown-light);
+  font-family: var(--font-sans);
+  margin-bottom: 6px;
+}
+.insight-value {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--brown);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.insight-sub {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--warm-gray);
+  font-family: var(--font-sans);
+}
+/* 明日死ぬ確率カードだけ、少し際立たせる */
+.insight-card[data-id="death-prob"] {
+  background: linear-gradient(135deg, var(--orange-pale) 0%, var(--white) 60%);
+  border-color: var(--orange-light);
+}
+.insight-card[data-id="death-prob"] .insight-value { color: var(--orange-dark); }
+.insight-card[data-id="death-prob"] .insight-sub { color: var(--brown-mid); }
+.insight-note {
+  margin: 18px 4px 4px;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--warm-gray);
+  text-align: center;
+}
+
+/* ============================================================
+   今日の宣言(わたし画面)
+   ============================================================ */
+.today-declaration {
+  background: var(--cream-dark);
+  border: 1.5px dashed var(--orange-light);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 4px 0 18px;
+  text-align: left;
+}
+.today-declaration label {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--brown-mid);
+  font-family: var(--font-sans);
+  margin-bottom: 8px;
+}
+.today-row {
+  display: flex;
+  gap: 8px;
+}
+#today-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1.5px solid var(--warm-gray-lt);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: var(--font-sans);
+  background: var(--white);
+  color: var(--brown);
+}
+#today-input:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+#today-form button {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--orange);
+  color: var(--white);
+  font-weight: 700;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+@media (hover: hover) {
+  #today-form button:hover { background: var(--orange-dark); }
+}
+.today-set-label {
+  font-size: 0.75rem;
+  color: var(--brown-light);
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+}
+.today-declaration .today-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+.today-check input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--orange);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+#today-text {
+  font-size: 1.05rem;
+  font-family: var(--font-serif);
+  color: var(--brown);
+  font-weight: 500;
+}
+#today-set.done #today-text {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+#today-clear {
+  margin-top: 12px;
+}
+
+/* 今日の宣言の「決める」ボタン: グローバルbuttonルールの width:100% を上書き(入力欄を潰さない) */
+#screen-self #today-form button {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* Life in Weeks */
+#weeks-grid-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f0ece6;
+}
+.weeks-title {
+  font-size: 1rem;
+  margin: 0 0 0.4rem;
+}
+.weeks-note {
+  font-size: 0.75rem;
+  color: #aaa;
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+.weeks-grid {
+  display: grid;
+  grid-template-columns: repeat(52, 5px);
+  gap: 1px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.weeks-grid .wc {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+}
+.weeks-grid .wc.p {
+  background: var(--orange);
+}
+.weeks-grid .wc.c {
+  background: var(--orange);
+  box-shadow: 0 0 3px var(--orange);
+  outline: 2px solid #c05510;
+  outline-offset: 0;
+}
+.weeks-grid .wc.f {
+  background: transparent;
+  border: 1px solid #e0d0c0;
+}
+
+/* 今の夢バナー */
+.dream-banner {
+  background: linear-gradient(135deg, #fff8f2 0%, #fff3e8 100%);
+  border: 2px solid var(--orange);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  text-align: center;
+}
+.dream-label {
+  font-size: 0.75rem;
+  color: var(--orange);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.25rem;
+}
+.dream-title {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+/* 優先順位 */
+#priority-section {
+  margin: 1rem 0 0.5rem;
+}
+.priority-heading {
+  font-size: 0.9rem;
+  color: var(--brown-light);
+  margin: 0 0 0.1rem;
+}
+.priority-note {
+  font-size: 0.75rem;
+  color: #bbb;
+  margin: 0 0 0.5rem;
+}
+.priority-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.priority-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #f0ece6;
+}
+.priority-item:last-child { border-bottom: none; }
+.priority-label {
+  flex: 1;
+  font-size: 0.95rem;
+}
+.pri-btn {
+  font-size: 0.85rem;
+  padding: 0.15rem 0.4rem;
+  min-width: 1.8rem;
+}
+.pri-btn:disabled { opacity: 0.25; cursor: default; }
+
+/* ピン留めボタン */
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.15rem;
+  color: #ccc;
+  padding: 0 0.25rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.pin-btn.pinned {
+  color: var(--orange);
+}
+
+/* v3: ストリーク & 今日の問い */
+.streak-line {
+  font-size: 0.85rem;
+  color: var(--orange);
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+
+.question-card {
+  background: var(--cream-dark);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+  margin: 1rem 0 0.5rem;
+  border-left: 3px solid var(--orange-light);
+}
+
+.question-label {
+  font-size: 0.7rem;
+  color: var(--brown-light);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.4rem;
+}
+
+.question-text {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  color: var(--brown);
+  margin: 0 0 0.6rem;
+  line-height: 1.5;
+}
+
+.question-past {
+  font-size: 0.82rem;
+  color: var(--brown-light);
+  background: var(--white);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.6rem;
+  margin: 0 0 0.6rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.reflection-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reflection-row input {
+  flex: 1;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--warm-gray);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  background: var(--white);
+  color: var(--brown);
+  font-family: var(--font-sans);
+}
+
+.reflection-row input:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+
+.reflection-row button {
+  width: auto !important;
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  background: var(--orange);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.reflection-row button:hover {
+  background: var(--orange-dark);
+}
+
+.reflection-saved {
+  font-size: 0.78rem;
+  color: #3dbf6e;
+  text-align: center;
+  margin: 0.3rem 0 0;
+}
+
+/* ============================================================
+   v4: ガチャ
+   ============================================================ */
+
+/* ガチャセクション */
+#gacha-section {
+  margin: 1.2rem 0 0.5rem;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #1a0a3a 0%, #2d1060 100%);
+  padding: 1rem 1.1rem;
+  color: #fff;
+}
+.gacha-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.gacha-heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #c8a0ff;
+}
+.gacha-lv-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 20px;
+  padding: 0.1rem 0.6rem;
+}
+
+/* XP バー */
+.gacha-xp-track {
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  margin-bottom: 0.2rem;
+  overflow: hidden;
+}
+.gacha-xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a855f7, #ec4899);
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.gacha-xp-label {
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.5);
+  margin: 0 0 0.8rem;
+}
+
+/* ガチャボタン */
+.gacha-pull-btn {
+  width: 100% !important;
+  padding: 0.85rem !important;
+  background: linear-gradient(135deg, #7c3aed, #db2777) !important;
+  color: #fff !important;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1.1rem !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.5);
+  animation: gachaPulse 2s ease-in-out infinite;
+}
+@keyframes gachaPulse {
+  0%, 100% { box-shadow: 0 4px 20px rgba(124, 58, 237, 0.5); }
+  50%       { box-shadow: 0 4px 32px rgba(219, 39, 119, 0.7); }
+}
+
+/* ガチャ結果カード */
+.gacha-result-card {
+  border-radius: var(--radius-sm);
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+}
+.gacha-result-card.rarity-n   { background: linear-gradient(135deg, #424242, #757575); }
+.gacha-result-card.rarity-r   { background: linear-gradient(135deg, #1565c0, #42a5f5); }
+.gacha-result-card.rarity-sr  { background: linear-gradient(135deg, #b45309, #fbbf24); }
+.gacha-result-card.rarity-ssr {
+  background: linear-gradient(135deg, #7b1fa2, #e91e63, #ff5722, #ff9800, #7b1fa2);
+  background-size: 300% 300%;
+  animation: gachaRainbow 4s ease infinite;
+}
+@keyframes gachaRainbow {
+  0%,100% { background-position: 0% 50%; }
+  50%     { background-position: 100% 50%; }
+}
+.gacha-rarity-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  border: 1.5px solid rgba(255,255,255,0.7);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+.gacha-challenge-text {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0 0 0.7rem;
+}
+.gacha-done-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.9);
+  cursor: pointer;
+}
+.gacha-done-label input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #fbbf24;
+}
+.gacha-xp-earned {
+  font-size: 0.8rem;
+  color: #fbbf24;
+  font-weight: 700;
+  margin: 0.5rem 0 0;
+}
+
+/* クリア記録 */
+.gacha-history-section { margin-top: 0.5rem; }
+.gacha-history-summary {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  list-style: none;
+}
+.gacha-history-summary::-webkit-details-marker { display: none; }
+.gacha-history-count {
+  color: rgba(255,255,255,0.4);
+  margin-left: 0.3rem;
+}
+.gacha-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.gacha-history-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.7);
+}
+.gacha-history-item:last-child { border-bottom: none; }
+.gacha-history-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+.gacha-history-badge.rarity-n   { color: #bdbdbd; }
+.gacha-history-badge.rarity-r   { color: #64b5f6; }
+.gacha-history-badge.rarity-sr  { color: #fbbf24; }
+.gacha-history-badge.rarity-ssr { color: #f9a8d4; }
+.gacha-history-date {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.35);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   ガチャ オーバーレイ
+   ============================================================ */
+#gacha-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 3, 25, 0.92);
+  animation: goFadeIn 0.2s ease;
+}
+@keyframes goFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.go-backdrop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+/* スピンフェーズのカード */
+.go-card {
+  width: 220px;
+  height: 300px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.go-front {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1e1040, #3b1d72);
+  border: 2px solid rgba(200,160,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.go-q {
+  font-size: 5rem;
+  color: rgba(200,160,255,0.6);
+  font-weight: 900;
+  line-height: 1;
+}
+/* スピンアニメーション */
+.go-card.go-spinning {
+  animation: goSpin 1.1s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes goSpin {
+  0%   { transform: scale(0.2) rotate(0deg);    opacity: 0; }
+  40%  { opacity: 1; }
+  80%  { transform: scale(1.08) rotate(680deg); }
+  100% { transform: scale(1) rotate(720deg);    opacity: 1; }
+}
+/* リールアニメーション(揺らぎ) */
+.go-card.go-spinning .go-q {
+  animation: goQBounce 0.15s ease-in-out infinite alternate;
+}
+@keyframes goQBounce {
+  from { transform: scale(1); }
+  to   { transform: scale(1.15); }
+}
+/* 裏面(結果) */
+.go-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  text-align: center;
+  animation: goReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes goReveal {
+  0%   { transform: rotateY(90deg) scale(0.7); opacity: 0; }
+  100% { transform: rotateY(0deg)  scale(1);   opacity: 1; }
+}
+.go-back.rarity-n   { background: linear-gradient(160deg, #424242, #757575); }
+.go-back.rarity-r   { background: linear-gradient(160deg, #0d47a1, #1976d2); box-shadow: 0 0 40px rgba(33,150,243,0.4); }
+.go-back.rarity-sr  { background: linear-gradient(160deg, #7f3d00, #f57f17); box-shadow: 0 0 60px rgba(255,193,7,0.5); }
+.go-back.rarity-ssr {
+  background: linear-gradient(160deg, #4a148c, #880e4f, #bf360c, #4a148c);
+  background-size: 300% 300%;
+  animation: goReveal 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards, gachaRainbow 3s ease infinite 0.5s;
+  box-shadow: 0 0 80px rgba(233,30,99,0.6), 0 0 20px rgba(255,255,255,0.2);
+}
+.go-rarity {
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: rgba(255,255,255,0.8);
+  border: 1.5px solid rgba(255,255,255,0.6);
+  border-radius: 4px;
+  padding: 0.1rem 0.5rem;
+  margin: 0;
+}
+.go-text {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.4;
+  margin: 0;
+}
+.go-xp-num {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffd700;
+  margin: 0;
+}
+.go-hint {
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.45);
+  text-align: center;
+}
+
+</style>
+</head>
+<body>
+<main id="app">
+  <!-- わたし -->
+  <section id="screen-self" class="screen active">
+    <button id="quote-banner" class="quote-banner" type="button" aria-label="次の言葉を見る">
+      <span id="quote-text" class="quote-text"></span>
+      <span id="quote-author" class="quote-author"></span>
+    </button>
+    <div id="onboarding" hidden>
+      <h1>人生タイマー</h1>
+      <p>誕生日を入れると、残り時間が動き出します。<br>データはこの端末の中だけに保存されます。</p>
+      <form id="onboarding-form">
+        <label>誕生日 <input type="date" id="ob-birth" required></label>
+        <label>性別(余命計算に使います)
+          <select id="ob-gender" required>
+            <option value="">選択してください</option>
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+          </select>
+        </label>
+        <button type="submit">はじめる</button>
+      </form>
+    </div>
+    <div id="self-timer" hidden>
+      <p id="streak-line" class="streak-line" hidden></p>
+      <p class="timer-label">あなたの残り時間</p>
+      <div id="countdown" class="countdown" aria-live="off"></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+      <p id="progress-text"></p>
+      <div id="dream-banner" class="dream-banner" hidden>
+        <p class="dream-label">★ 今の夢</p>
+        <p id="dream-title" class="dream-title"></p>
+      </div>
+      <p id="today-message" class="message">今日をどう使う?</p>
+      <div id="today-declaration" class="today-declaration">
+        <form id="today-form">
+          <label for="today-input">今日やることを1つ</label>
+          <div class="today-row">
+            <input type="text" id="today-input" maxlength="60" placeholder="例: 履歴書を書く">
+            <button type="submit">決める</button>
+          </div>
+        </form>
+        <div id="today-set" hidden>
+          <p class="today-set-label">今日の宣言</p>
+          <label class="today-check"><input type="checkbox" id="today-done"> <span id="today-text"></span></label>
+          <button type="button" id="today-clear" class="ghost-btn">変更する</button>
+        </div>
+      </div>
+      <div id="question-card" class="question-card">
+        <p class="question-label">今日の問い</p>
+        <p id="question-text" class="question-text"></p>
+        <p id="question-past" class="question-past" hidden></p>
+        <form id="reflection-form">
+          <div class="reflection-row">
+            <input type="text" id="reflection-input" maxlength="100" placeholder="一言だけ、残しておく(任意)">
+            <button type="submit">残す</button>
+          </div>
+          <p id="reflection-saved" class="reflection-saved" role="status" hidden>残しました</p>
+        </form>
+      </div>
+      <section id="gacha-section" hidden>
+        <div class="gacha-header">
+          <p class="gacha-heading">今日のお題</p>
+          <span id="gacha-lv-badge" class="gacha-lv-badge"></span>
+        </div>
+        <div class="gacha-xp-track"><div id="gacha-xp-fill" class="gacha-xp-fill"></div></div>
+        <p id="gacha-xp-label" class="gacha-xp-label"></p>
+        <div id="gacha-pull-area">
+          <button id="gacha-pull-btn" type="button" class="gacha-pull-btn">✦ ガチャを引く！</button>
+        </div>
+        <div id="gacha-result-area" hidden>
+          <div id="gacha-result-card" class="gacha-result-card">
+            <span id="gacha-rarity-badge" class="gacha-rarity-badge"></span>
+            <p id="gacha-challenge-text" class="gacha-challenge-text"></p>
+            <label class="gacha-done-label"><input type="checkbox" id="gacha-done-check"> クリアした！</label>
+            <p id="gacha-xp-earned" class="gacha-xp-earned" hidden></p>
+          </div>
+        </div>
+        <details id="gacha-history-section" hidden>
+          <summary class="gacha-history-summary">クリア記録 <span id="gacha-history-count" class="gacha-history-count"></span></summary>
+          <ul id="gacha-history-list" class="gacha-history-list"></ul>
+        </details>
+      </section>
+      <section id="priority-section" hidden>
+        <h3 class="priority-heading">時間の優先順位</h3>
+        <p class="priority-note">↑↓で並べ替えてみよう</p>
+        <ol id="priority-list" class="priority-list"></ol>
+      </section>
+      <button id="open-settings" class="ghost-btn">設定</button>
+    </div>
+    <div id="settings" hidden>
+      <h2>設定</h2>
+      <form id="settings-form">
+        <label>誕生日 <input type="date" id="set-birth" required></label>
+        <label>性別
+          <select id="set-gender" required>
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+          </select>
+        </label>
+        <label>目標寿命(任意。「100歳まで生きる」なら100)
+          <input type="number" id="set-lifespan" min="1" max="150" placeholder="未設定なら統計値">
+        </label>
+        <button type="submit">保存</button>
+        <button type="button" id="close-settings" class="ghost-btn">閉じる</button>
+      </form>
+      <h3>バックアップ</h3>
+      <button id="export-json">JSONで書き出す</button>
+      <label class="file-btn">JSONを読み込む<input type="file" id="import-json" accept=".json,application/json" hidden></label>
+      <p id="import-result" role="status"></p>
+    </div>
+    <div id="corrupt-notice" hidden>
+      <h2>データを読み込めませんでした</h2>
+      <p>保存データが壊れています。バックアップJSONから復元するか、リセットしてください。</p>
+      <label class="file-btn">バックアップから復元<input type="file" id="restore-json" accept=".json,application/json" hidden></label>
+      <p id="restore-result" role="status"></p>
+      <button id="reset-data" class="danger-btn">リセットして最初から</button>
+    </div>
+  </section>
+  <!-- 見つめる -->
+  <section id="screen-insight" class="screen">
+    <h1>見つめる</h1>
+    <p id="insight-empty" hidden>まず「わたし」で誕生日を設定してください。</p>
+    <div id="insight-cards"></div>
+    <p class="insight-note">呼吸・鼓動・確率は、統計からのおおよその目安です。医療情報ではありません。</p>
+    <section id="weeks-grid-section" hidden>
+      <h2 class="weeks-title">人生の週カレンダー</h2>
+      <p class="weeks-note">生まれてから経過した週はオレンジで塗られています。左上が0歳の第1週、右へ1週ずつ進み、52週で折り返して次の年へ。</p>
+      <div id="weeks-grid" class="weeks-grid" aria-hidden="true"></div>
+    </section>
+  </section>
+  <!-- 家族 -->
+  <section id="screen-family" class="screen">
+    <h1>家族</h1>
+    <ul id="family-list"></ul>
+    <p id="family-empty" hidden>家族を追加すると「あと何回会えるか」がわかります。</p>
+    <button id="add-family">+ 家族を追加</button>
+    <dialog id="family-dialog">
+      <form id="family-form">
+        <h2 id="family-dialog-title">家族を追加</h2>
+        <label>名前 <input type="text" id="fam-name" required maxlength="20"></label>
+        <label>誕生日 <input type="date" id="fam-birth" required></label>
+        <label>性別
+          <select id="fam-gender" required>
+            <option value="male">男性</option>
+            <option value="female">女性</option>
+          </select>
+        </label>
+        <label>続柄
+          <select id="fam-relation">
+            <option value="other">その他</option>
+            <option value="child">子ども</option>
+            <option value="parent">親</option>
+            <option value="spouse">配偶者・パートナー</option>
+            <option value="sibling">兄弟姉妹</option>
+            <option value="friend">友人</option>
+          </select>
+        </label>
+        <label>会う頻度
+          <select id="fam-freq">
+            <option value="daily">毎日</option>
+            <option value="weekly">週に1回</option>
+            <option value="monthly" selected>月に1回</option>
+            <option value="yearly-2">年に2回</option>
+            <option value="yearly-1">年に1回</option>
+          </select>
+        </label>
+        <button type="submit" id="fam-save">保存</button>
+        <button type="button" id="fam-delete" class="danger-btn" hidden>削除</button>
+        <button type="button" id="fam-cancel" class="ghost-btn">キャンセル</button>
+      </form>
+    </dialog>
+  </section>
+  <!-- やりたいこと -->
+  <section id="screen-wishes" class="screen">
+    <h1>やりたいこと</h1>
+    <form id="wish-form">
+      <input type="text" id="wish-title" placeholder="例: 家族で沖縄に行く" required maxlength="50">
+      <input type="number" id="wish-age" min="1" max="150" placeholder="◯歳までに(任意)">
+      <button type="submit">追加</button>
+    </form>
+    <ul id="wish-list"></ul>
+    <p id="wish-empty" hidden>最初のやりたいことを書いてみましょう。</p>
+    <h2 class="done-heading">叶えた夢 <span id="done-count"></span></h2>
+    <ul id="wish-done-list"></ul>
+  </section>
+</main>
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="self">わたし</button>
+  <button class="tab-btn" data-tab="insight">見つめる</button>
+  <button class="tab-btn" data-tab="family">家族</button>
+  <button class="tab-btn" data-tab="wishes">やりたいこと</button>
+</nav>
+<div id="celebrate" hidden aria-hidden="true"></div>
+<div id="gacha-overlay" hidden aria-modal="true" role="dialog">
+  <div class="go-backdrop">
+    <div id="go-card" class="go-card">
+      <div id="go-front" class="go-front"><span class="go-q">?</span></div>
+      <div id="go-back" class="go-back" hidden>
+        <p id="go-rarity" class="go-rarity"></p>
+        <p id="go-text" class="go-text"></p>
+        <p id="go-xp" class="go-xp-num"></p>
+      </div>
+    </div>
+    <p id="go-hint" class="go-hint">引いています…</p>
+  </div>
+</div>
+<footer class="source-note">出典:「令和5年簡易生命表」(厚生労働省)を加工して作成。余命は統計上の平均であり、個人の寿命を予測するものではありません。</footer>
+<script>/* 人生タイマー 年齢別平均余命テーブル
+   出典: 「令和5年簡易生命表」(厚生労働省)を加工して作成
+   https://www.mhlw.go.jp/toukei/saikin/hw/life/life23/index.html
+   5歳刻みの公表値(単位: 年)。中間年齢は線形補間で求める */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.LifeTable = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const LIFE_TABLE = {
+    male: {
+      0: 81.09, 5: 76.30, 10: 71.33, 15: 66.36, 20: 61.45, 25: 56.59,
+      30: 51.72, 35: 46.87, 40: 42.06, 45: 37.28, 50: 32.60, 55: 28.05,
+      60: 23.68, 65: 19.52, 70: 15.65, 75: 12.13, 80: 8.98, 85: 6.29,
+      90: 4.22, 95: 2.75, 100: 1.72, 105: 1.05,
+    },
+    female: {
+      0: 87.14, 5: 82.35, 10: 77.37, 15: 72.40, 20: 67.48, 25: 62.57,
+      30: 57.65, 35: 52.74, 40: 47.85, 45: 43.01, 50: 38.23, 55: 33.54,
+      60: 28.91, 65: 24.38, 70: 19.96, 75: 15.74, 80: 11.81, 85: 8.33,
+      90: 5.53, 95: 3.45, 100: 2.13, 105: 1.33,
+    },
+  };
+  // 年間死亡率(qx: 年齢xの人が1年以内に死亡する確率)。出典・加工は上記に同じ
+  const MORTALITY = {
+    male: {
+      0: 0.00065, 5: 0.00009, 10: 0.00006, 15: 0.00018, 20: 0.00043, 25: 0.00050,
+      30: 0.00055, 35: 0.00073, 40: 0.00102, 45: 0.00147, 50: 0.00243, 55: 0.00399,
+      60: 0.00633, 65: 0.01049, 70: 0.01724, 75: 0.02839, 80: 0.04773, 85: 0.08414,
+      90: 0.15182, 95: 0.25176, 100: 0.40062, 105: 1,
+    },
+    female: {
+      0: 0.00061, 5: 0.00008, 10: 0.00006, 15: 0.00015, 20: 0.00027, 25: 0.00028,
+      30: 0.00028, 35: 0.00041, 40: 0.00059, 45: 0.00088, 50: 0.00146, 55: 0.00211,
+      60: 0.00300, 65: 0.00437, 70: 0.00703, 75: 0.01215, 80: 0.02269, 85: 0.04654,
+      90: 0.09579, 95: 0.18687, 100: 0.32744, 105: 1,
+    },
+  };
+
+  // 年齢別テーブルを線形補間して引く。掲載年齢はそのまま、上限超は最終値、負は0歳値。
+  // ages はテーブルごとに導出する(テーブルの刻みが違っても正しく動く)
+  function interpolate(table, gender, age) {
+    const t = table[gender];
+    if (!t) throw new Error('unknown gender: ' + gender);
+    const ages = Object.keys(t).map(Number).sort((a, b) => a - b);
+    const maxAge = ages[ages.length - 1];
+    if (age <= 0) return t[ages[0]];
+    if (age >= maxAge) return t[maxAge];
+    let lo = ages[0], hi = ages[1];
+    for (let i = 0; i < ages.length - 1; i++) {
+      if (ages[i] <= age) { lo = ages[i]; hi = ages[i + 1]; } else break;
+    }
+    const ratio = (age - lo) / (hi - lo);
+    return t[lo] + (t[hi] - t[lo]) * ratio;
+  }
+
+  function remainingYears(gender, age) {
+    return interpolate(LIFE_TABLE, gender, age);
+  }
+
+  function annualMortality(gender, age) {
+    return interpolate(MORTALITY, gender, age);
+  }
+
+  return { LIFE_TABLE, MORTALITY, remainingYears, annualMortality };
+});
+</script>
+<script>/* 人生タイマー 残り時間計算 — DOM非依存の純粋関数のみ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./life-table.js'));
+  else root.TimeCalc = factory(root.LifeTable);
+})(typeof self !== 'undefined' ? self : this, function (LifeTable) {
+  'use strict';
+
+  const MS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1000;
+  const MS_DAY = 86400000;
+
+  function parseDate(s) {
+    return new Date(s + 'T00:00:00');
+  }
+
+  // fromからnヶ月後。月末は短い月の末日にクランプ(1/31+1ヶ月=2/28|29)
+  function addMonthsClamped(from, n) {
+    const r = new Date(from);
+    const day = r.getDate();
+    r.setDate(1);
+    r.setMonth(r.getMonth() + n);
+    const last = new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate();
+    r.setDate(Math.min(day, last));
+    return r;
+  }
+
+  function breakdown(from, to) {
+    if (to - from <= 0) {
+      return { expired: true, years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0 };
+    }
+    let totalMonths = 0;
+    let cursor = new Date(from);
+    let next = addMonthsClamped(from, totalMonths + 1);
+    while (next <= to) {
+      totalMonths++;
+      cursor = next;
+      next = addMonthsClamped(from, totalMonths + 1);
+    }
+    let ms = to - cursor;
+    const days = Math.floor(ms / MS_DAY); ms -= days * MS_DAY;
+    const hours = Math.floor(ms / 3600000); ms -= hours * 3600000;
+    const minutes = Math.floor(ms / 60000); ms -= minutes * 60000;
+    const seconds = Math.floor(ms / 1000);
+    return {
+      expired: false,
+      years: Math.floor(totalMonths / 12),
+      months: totalMonths % 12,
+      days, hours, minutes, seconds,
+    };
+  }
+
+  function expectedDeathDate(person, now) {
+    const birth = parseDate(person.birthDate);
+    if (person.customLifespan != null) {
+      return new Date(birth.getTime() + person.customLifespan * MS_PER_YEAR);
+    }
+    const age = (now - birth) / MS_PER_YEAR;
+    const rem = LifeTable.remainingYears(person.gender, age);
+    return new Date(now.getTime() + rem * MS_PER_YEAR);
+  }
+
+  function progressPercent(birthDateStr, death, now) {
+    const birth = parseDate(birthDateStr);
+    const p = ((now - birth) / (death - birth)) * 100;
+    return Math.min(100, Math.max(0, p));
+  }
+
+  const FREQ_PER_YEAR = { daily: 365, weekly: 52, monthly: 12 };
+
+  function freqPerYear(freq) {
+    if (FREQ_PER_YEAR[freq]) return FREQ_PER_YEAR[freq];
+    const m = /^yearly-(\d+)$/.exec(freq);
+    if (m) {
+      const n = Number(m[1]);
+      if (n < 1) throw new Error('unknown frequency: ' + freq);
+      return n;
+    }
+    throw new Error('unknown frequency: ' + freq);
+  }
+
+  // 会える回数 = 先に尽きる側までの残り年数 × 年間頻度
+  function meetCount(selfDeath, familyDeath, freq, now) {
+    const end = Math.min(selfDeath.getTime(), familyDeath.getTime());
+    const years = Math.max(0, (end - now.getTime()) / MS_PER_YEAR);
+    return Math.floor(years * freqPerYear(freq));
+  }
+
+  function remainingSeconds(now, death) {
+    return Math.max(0, Math.floor((death.getTime() - now.getTime()) / 1000));
+  }
+
+  function countByRatePerMinute(remainingSec, perMinute) {
+    return Math.floor(remainingSec * perMinute / 60);
+  }
+
+  function occurrencesUntil(now, death, perYear) {
+    const years = Math.max(0, (death.getTime() - now.getTime()) / MS_PER_YEAR);
+    return Math.floor(years * perYear);
+  }
+
+  function daysLived(birthDateStr, now) {
+    const days = Math.floor((now.getTime() - parseDate(birthDateStr).getTime()) / MS_DAY);
+    return Math.max(0, days);
+  }
+
+  function dailyDeathProbability(qxAnnual) {
+    return 1 - Math.pow(1 - qxAnnual, 1 / 365);
+  }
+
+  function awakeRemainingToday(now, bedHour) {
+    const bed = new Date(now);
+    bed.setHours(bedHour, 0, 0, 0);
+    let ms = bed.getTime() - now.getTime();
+    if (ms <= 0) return { hours: 0, minutes: 0 };
+    const hours = Math.floor(ms / 3600000); ms -= hours * 3600000;
+    const minutes = Math.floor(ms / 60000);
+    return { hours, minutes };
+  }
+
+  function childRemainingDays(birthDate, targetAge, now) {
+    const birth = parseDate(birthDate);
+    const milestone = new Date(birth);
+    milestone.setFullYear(milestone.getFullYear() + targetAge);
+    const ms = milestone - now;
+    if (ms <= 0) return { days: 0, expired: true };
+    return { days: Math.ceil(ms / (1000 * 60 * 60 * 24)), expired: false };
+  }
+
+  return {
+    MS_PER_YEAR, parseDate, breakdown, expectedDeathDate, progressPercent, freqPerYear, meetCount,
+    remainingSeconds, countByRatePerMinute, occurrencesUntil, daysLived, dailyDeathProbability, awakeRemainingToday,
+    childRemainingDays,
+  };
+});
+</script>
+<script>/* 人生タイマー 格言集 — 時間・行動・今を生きることをテーマにした偉人の言葉
+   広く知られ、出典が確かなものを収録。誤帰属・出典不明のものは載せない。 */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Quotes = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const LIST = [
+    { author: 'スティーブ・ジョブズ', text: 'もし今日が人生最後の日だとしたら、今日やろうとしていることを本当にやりたいか?' },
+    { author: 'スティーブ・ジョブズ', text: '時間は限られている。だから、他人の人生を生きて時間を無駄にしてはいけない。' },
+    { author: '中島敦', text: '人生は何事もなさぬにはあまりにも長いが、何事かをなすにはあまりにも短い。' },
+    { author: 'マハトマ・ガンジー', text: '明日死ぬかのように生きよ。永遠に生きるかのように学べ。' },
+    { author: 'セネカ', text: '致命的なのは、時間が足りないことではなく、多くの時間を無駄にしていることだ。' },
+    { author: 'セネカ', text: '生きることを学ぶには、一生涯かかる。' },
+    { author: '吉田松陰', text: '今日できることを明日に延ばすな。今日という日は二度と来ない。' },
+    { author: 'ピーター・ドラッカー', text: '未来を予測する最良の方法は、それを創り出すことだ。' },
+    { author: 'ヘレン・ケラー', text: '人生は勇敢な冒険か、さもなくば無かである。' },
+    { author: 'マルクス・アウレリウス', text: '今を生きよ。人が失えるのは、まさにこの現在という一瞬だけなのだから。' },
+    { author: '孔子', text: '過ぎゆく時は、この川の流れのようだ。昼も夜も、止まることがない。' },
+    { author: '良寛', text: '散る桜 残る桜も 散る桜。' },
+    { author: '松尾芭蕉', text: '月日は百代の過客にして、行きかふ年もまた旅人なり。' },
+    { author: '坂本龍馬', text: '世の人は我を何とも言わば言え。我が成すことは我のみぞ知る。' },
+    { author: 'ベンジャミン・フランクリン', text: 'あなたは遅れるかもしれないが、時間は遅れない。' },
+    { author: 'チャールズ・ダーウィン', text: '一時間を無駄にすることを何とも思わない人は、まだ人生の価値を見つけていない。' },
+    { author: 'レオナルド・ダ・ヴィンチ', text: '充実した一日が幸福な眠りをもたらすように、充実した一生は幸福な死をもたらす。' },
+    { author: 'レフ・トルストイ', text: 'いちばん大切な時は、いまである。いちばん大切な人は、いま一緒にいる人である。' },
+    { author: 'マザー・テレサ', text: '昨日は過ぎ去り、明日はまだ来ない。私たちにはただ今日があるだけ。さあ、始めましょう。' },
+    { author: '朱熹', text: '少年老い易く学成り難し。一寸の光陰軽んずべからず。' },
+    { author: '兼好法師', text: 'ただ今の一念が、むなしく過ぎ去っていくことを惜しむべきである。' },
+    { author: 'ミヒャエル・エンデ', text: '時間とは、生きるということ、そのものだ。' },
+    { author: 'モンテーニュ', text: '人生の価値は、その長さではなく、どう使うかにある。' },
+    { author: 'ヘンリー・フォード', text: '二十歳であろうと八十歳であろうと、学ぶことをやめた者は老人である。' },
+    { author: '相田みつを', text: 'いま ここ しかない わたしの人生。' },
+    { author: 'パスカル', text: '我々はいつか生きようと望むばかりで、決して今を生きていない。' },
+    { author: 'ウォルト・ディズニー', text: '夢を追い求める勇気があれば、すべての夢は必ず実現できる。' },
+    { author: 'トーマス・エジソン', text: '人生に失敗した人の多くは、あきらめたときにどれほど成功に近づいていたかに気づかない。' },
+  ];
+
+  return { LIST };
+});
+</script>
+<script>/* 人生タイマー 今日の問い — オリジナルの問いかけ50問(日替わり・50日周期) */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Questions = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const LIST = [
+    '今日、いちばん会いたい人は誰ですか?',
+    '最後に「ありがとう」を伝えたのは、いつですか?',
+    'もし今日が人生最後の日なら、何をやめますか?',
+    '1年後の自分に、一言かけるなら?',
+    '今日、5分だけ自由な時間があったら何をしますか?',
+    '最近、心から笑ったのはいつですか?',
+    '今いちばん感謝したい人は誰ですか?',
+    '子どもの頃の夢を、まだ覚えていますか?',
+    '明日消えるとしたら、今日誰に電話しますか?',
+    '今週、いちばん楽しみにしていることは?',
+    '自分を褒めるとしたら、今日はどこを褒めますか?',
+    '10年前の自分に教えたいことは何ですか?',
+    '今日出会う人に、どんな顔で会いたいですか?',
+    '「いつかやる」と言い続けていることは何ですか?',
+    '大切な人の好きなところを、1つ挙げるなら?',
+    '今日の自分に必要な休みは、どんな休みですか?',
+    '死ぬまでに一度は見たい景色はありますか?',
+    '最近、新しく始めたことはありますか?',
+    '今日、手放したい心配ごとは何ですか?',
+    'あなたが「生きてるなあ」と感じる瞬間は?',
+    '誰かに謝りたいことが、残っていませんか?',
+    '今日という日を色で表すと、何色ですか?',
+    '親にまだ聞いていないことは何ですか?',
+    '今日、体は何と言っていますか?',
+    '5年後、どこで朝を迎えていたいですか?',
+    '最近もらった言葉で、嬉しかったものは?',
+    '今日、誰かのために使える10分があったら何をしますか?',
+    '昨日の自分より、今日よくなれることを1つ挙げるなら?',
+    '人生で「あの日に戻れたら」と思う日はありますか?',
+    '今夜眠る前に「いい一日だった」と言うには、何が要りますか?',
+    'あなたが守りたいものは何ですか?',
+    '最近、夢中になって時間を忘れたことは?',
+    '今日、初めてやってみたいことは?',
+    '大切な人と、あと何回桜を見られると思いますか?',
+    '「ありがとう」以外で、感謝を伝える方法はありますか?',
+    '今の自分を、子どもの頃の自分は何と言うでしょう?',
+    '今日、断ってもいいことは何ですか?',
+    '心が軽くなる場所はどこですか?',
+    'もう会えない人に、伝えたかったことは?',
+    '今日の小さな贅沢を1つ選ぶなら?',
+    '誰かの人生を1つだけ楽にできるなら、誰の何を楽にしますか?',
+    '最近、涙が出たのはいつですか?',
+    '今日、スマホを置いて何をしますか?',
+    'あなたのお葬式で、なんと言われたいですか?',
+    '今日、種をまくとしたら何の種ですか?',
+    '疲れた日の自分への合言葉はありますか?',
+    '今年が残り半分だとして、何を優先しますか?',
+    '大切な人の誕生日を、あと何回祝えるでしょう?',
+    '「今日はよくやった」と言える最低ラインはどこですか?',
+    '明日の自分が楽になるように、今日できることは?',
+  ];
+
+  // 基準日からの経過日数で決定論的に選ぶ(同じ日は必ず同じ問い・50日周期)
+  function indexFor(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const base = new Date('2026-01-01T00:00:00');
+    const days = Math.round((d - base) / 86400000);
+    return ((days % LIST.length) + LIST.length) % LIST.length;
+  }
+
+  return { LIST, indexFor };
+});
+</script>
+<script>/* 人生タイマー ガチャ — 毎日1回のお題排出・レベルシステム */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.Gacha = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // レア度定義: prob=累積確率閾値(小さい方から引く), xp=クリア獲得XP
+  const RARITY = {
+    SSR: { prob: 0.03, xp: 30, label: 'SSR' },
+    SR:  { prob: 0.15, xp: 10, label: 'SR' },
+    R:   { prob: 0.40, xp: 3,  label: 'R' },
+    N:   { prob: 1.00, xp: 1,  label: 'N' },
+  };
+
+  const CHALLENGES = [
+    // ── N (60%) ── 即日・1〜10分でできること
+    { id: 'n01', rarity: 'N', text: '今日、水を5杯飲む' },
+    { id: 'n02', rarity: 'N', text: '誰かに「ありがとう」と言う' },
+    { id: 'n03', rarity: 'N', text: '深呼吸を10回する' },
+    { id: 'n04', rarity: 'N', text: '窓を開けて外の空気を吸う' },
+    { id: 'n05', rarity: 'N', text: 'スマホを置いて空を1分見る' },
+    { id: 'n06', rarity: 'N', text: '今日の食事をゆっくり味わって食べる' },
+    { id: 'n07', rarity: 'N', text: '出会った人に笑顔で挨拶する' },
+    { id: 'n08', rarity: 'N', text: '不要なものを1つ捨てる' },
+    { id: 'n09', rarity: 'N', text: '今日の気分を一言で表してみる' },
+    { id: 'n10', rarity: 'N', text: '好きな音楽を1曲フルで聴く' },
+    { id: 'n11', rarity: 'N', text: '5分間、何もしない時間を作る' },
+    { id: 'n12', rarity: 'N', text: '今日の良かったことを1つ思い出す' },
+    { id: 'n13', rarity: 'N', text: '靴を揃えて置く' },
+    { id: 'n14', rarity: 'N', text: '寝る前に5分だけ本を読む' },
+    { id: 'n15', rarity: 'N', text: '1回の食事をスマホなしで食べる' },
+    { id: 'n16', rarity: 'N', text: '誰かに「お疲れ様」と声をかける' },
+    { id: 'n17', rarity: 'N', text: '今日の空の色を覚えておく' },
+    { id: 'n18', rarity: 'N', text: '手を30秒丁寧に洗う' },
+    { id: 'n19', rarity: 'N', text: '使っていないアプリを1つ削除する' },
+    { id: 'n20', rarity: 'N', text: '大きな声で返事をする' },
+    { id: 'n21', rarity: 'N', text: '朝一番にコップ1杯の水を飲む' },
+    { id: 'n22', rarity: 'N', text: '今日の日付を手書きする' },
+    { id: 'n23', rarity: 'N', text: '背筋を伸ばして1分座る' },
+    { id: 'n24', rarity: 'N', text: '今夜の寝る時間を決める' },
+    { id: 'n25', rarity: 'N', text: '誰かのために少しだけ道をあける' },
+    { id: 'n26', rarity: 'N', text: '明日の服を今日決めておく' },
+    { id: 'n27', rarity: 'N', text: '1分間だけ目を閉じて静かにする' },
+    { id: 'n28', rarity: 'N', text: '今日会った人を心の中で1人褒める' },
+    { id: 'n29', rarity: 'N', text: '体にいいものを食事で1つ選ぶ' },
+    { id: 'n30', rarity: 'N', text: '今日の「よし、やろう」を1つ決める' },
+
+    // ── R (25%) ── 30分〜1時間の行動
+    { id: 'r01', rarity: 'R', text: '30分読書する' },
+    { id: 'r02', rarity: 'R', text: '先延ばしにしていることを1つ片付ける' },
+    { id: 'r03', rarity: 'R', text: '日記を3行書く' },
+    { id: 'r04', rarity: 'R', text: '20分運動する' },
+    { id: 'r05', rarity: 'R', text: '料理を1品自分で作る' },
+    { id: 'r06', rarity: 'R', text: '苦手な人に自分から話しかける' },
+    { id: 'r07', rarity: 'R', text: 'いつもと違う道を通って帰る' },
+    { id: 'r08', rarity: 'R', text: '今月の出費を見直す' },
+    { id: 'r09', rarity: 'R', text: '学びたいことを30分だけ調べる' },
+    { id: 'r10', rarity: 'R', text: '部屋の一角を徹底的に片付ける' },
+    { id: 'r11', rarity: 'R', text: '久しぶりの友人に連絡する' },
+    { id: 'r12', rarity: 'R', text: '自分の長所を3つ書き出す' },
+    { id: 'r13', rarity: 'R', text: '今日の学びをひと言メモに残す' },
+    { id: 'r14', rarity: 'R', text: 'ストレッチを15分する' },
+    { id: 'r15', rarity: 'R', text: '昔の写真を見返す' },
+    { id: 'r16', rarity: 'R', text: '今年の目標を見直す' },
+    { id: 'r17', rarity: 'R', text: '気になっていた本を1冊調べて候補に入れる' },
+    { id: 'r18', rarity: 'R', text: '散歩しながら普段気づかないものを3つ見つける' },
+    { id: 'r19', rarity: 'R', text: 'やめたいことを1つ書き出して理由を考える' },
+    { id: 'r20', rarity: 'R', text: '「もったいない」と感じているものを1つ手放す' },
+
+    // ── SR (12%) ── 今日1日かけてやること
+    { id: 'sr01', rarity: 'SR', text: '大切な人に電話して近況を話す' },
+    { id: 'sr02', rarity: 'SR', text: 'やりたいことを10個紙に書き出す' },
+    { id: 'sr03', rarity: 'SR', text: '今日だけSNSを開かない' },
+    { id: 'sr04', rarity: 'SR', text: '頼まれていないのに誰かのために何かをする' },
+    { id: 'sr05', rarity: 'SR', text: '苦手なことに1時間だけ向き合う' },
+    { id: 'sr06', rarity: 'SR', text: '誰かに本音を話す' },
+    { id: 'sr07', rarity: 'SR', text: '何でもいいので新しいことに挑戦する' },
+    { id: 'sr08', rarity: 'SR', text: '今日の全食事を自炊する' },
+    { id: 'sr09', rarity: 'SR', text: '誰かに手書きのメモか手紙を渡す' },
+    { id: 'sr10', rarity: 'SR', text: '1時間、スマホを別の部屋に置く' },
+    { id: 'sr11', rarity: 'SR', text: '運動を1時間続ける' },
+    { id: 'sr12', rarity: 'SR', text: '今日だけ、不満を口に出さない' },
+    { id: 'sr13', rarity: 'SR', text: 'ずっと会いたかった人に連絡する' },
+    { id: 'sr14', rarity: 'SR', text: '寝る前に今日の感謝を5つ書く' },
+    { id: 'sr15', rarity: 'SR', text: '1日の振り返りをノートにびっしり書く' },
+
+    // ── SSR (3%) ── 人生レベルで意味がある
+    { id: 'ssr01', rarity: 'SSR', text: '今日だけスマホを6時間以上置いてみる' },
+    { id: 'ssr02', rarity: 'SSR', text: '人生の目標を書き直す・見直す' },
+    { id: 'ssr03', rarity: 'SSR', text: 'ずっと謝れていなかった人に連絡する' },
+    { id: 'ssr04', rarity: 'SSR', text: '子どもの頃の夢を思い出して今の自分と比べてみる' },
+    { id: 'ssr05', rarity: 'SSR', text: '今日が人生最後の日だとしたら何をするか紙に書き出す' },
+  ];
+
+  // レア度に基づいてランダムに1件引く
+  function pull() {
+    const r = Math.random();
+    let rarity;
+    if (r < RARITY.SSR.prob) rarity = 'SSR';
+    else if (r < RARITY.SR.prob) rarity = 'SR';
+    else if (r < RARITY.R.prob) rarity = 'R';
+    else rarity = 'N';
+
+    const pool = CHALLENGES.filter((c) => c.rarity === rarity);
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    return { id: picked.id, rarity: picked.rarity, text: picked.text, xp: RARITY[rarity].xp };
+  }
+
+  // 累積XP→{level, xpInLevel, xpNeeded}
+  // 閾値: Lv1→2=10, Lv2→3=20, Lv3→4=30 … (各レベルで10ずつ増える)
+  function levelFromXp(totalXp) {
+    let level = 1;
+    let xpNeeded = 10;
+    let accumulated = 0;
+    while (totalXp >= accumulated + xpNeeded) {
+      accumulated += xpNeeded;
+      level++;
+      xpNeeded = 10 * level;
+    }
+    return { level, xpInLevel: totalXp - accumulated, xpNeeded };
+  }
+
+  return { CHALLENGES, RARITY, pull, levelFromXp };
+});
+</script>
+<script>/* 人生タイマー 見つめるカードのビューモデル — DOM非依存の純粋関数 */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./life-table.js'), require('./time-calc.js'));
+  else root.Insight = factory(root.LifeTable, root.TimeCalc);
+})(typeof self !== 'undefined' ? self : this, function (LifeTable, TimeCalc) {
+  'use strict';
+
+  const LOTTERY_ODDS = 20000000; // 宝くじ1等 約2000万分の1(注記付きの目安)
+  const BREATHS_PER_MIN = 16;
+  const HEARTBEATS_PER_MIN = 70;
+  const SLEEP_FRACTION = 8 / 24;
+  const BED_HOUR = 23;
+  const MOON_PER_YEAR = 12.37;
+  const SEC_PER_YEAR = TimeCalc.MS_PER_YEAR / 1000;
+
+  // 大きい整数を「1億2340万」形式に(万・億・兆)。1万未満はカンマ区切り
+  function formatOku(n) {
+    n = Math.floor(n);
+    if (n < 10000) return n.toLocaleString('en-US');
+    const units = [[1e12, '兆'], [1e8, '億'], [1e4, '万']];
+    let rest = n, out = '';
+    for (const [base, label] of units) {
+      if (rest >= base) {
+        out += Math.floor(rest / base) + label;
+        rest = rest % base;
+      }
+    }
+    return out;
+  }
+
+  function ageAt(person, now) {
+    return (now.getTime() - TimeCalc.parseDate(person.birthDate).getTime()) / TimeCalc.MS_PER_YEAR;
+  }
+
+  function build(person, deathDate, now) {
+    const sec = TimeCalc.remainingSeconds(now, deathDate);
+    const years = sec / SEC_PER_YEAR;
+
+    // 明日死ぬ確率
+    const qx = LifeTable.annualMortality(person.gender, ageAt(person, now));
+    const pDay = TimeCalc.dailyDeathProbability(qx);
+    const timesVsLottery = pDay > 0 ? Math.round(LOTTERY_ODDS * pDay) : 0;
+    const surviveP = ((1 - pDay) * 100).toFixed(4);
+
+    const yearlyCount = TimeCalc.occurrencesUntil(now, deathDate, 1);
+    const moonCount = TimeCalc.occurrencesUntil(now, deathDate, MOON_PER_YEAR);
+    const awake = TimeCalc.awakeRemainingToday(now, BED_HOUR);
+    const awakeValue = (awake.hours === 0 && awake.minutes === 0)
+      ? 'そろそろ休みましょう'
+      : `あと ${awake.hours}時間${awake.minutes}分`;
+
+    return [
+      { id: 'seconds', label: '残り時間を秒で数えると', value: `約 ${formatOku(sec)} 秒`, sub: '1秒、また1秒と減っていきます' },
+      { id: 'breaths', label: 'これからする呼吸', value: `約 ${formatOku(TimeCalc.countByRatePerMinute(sec, BREATHS_PER_MIN))} 回`, sub: `1分に約${BREATHS_PER_MIN}回として` },
+      { id: 'heartbeats', label: 'これから打つ鼓動', value: `約 ${formatOku(TimeCalc.countByRatePerMinute(sec, HEARTBEATS_PER_MIN))} 回`, sub: `1分に約${HEARTBEATS_PER_MIN}回として` },
+      { id: 'breakdown', label: '残り時間の内訳', value: `眠っている時間だけで 約${Math.floor(years * SLEEP_FRACTION)}年`, sub: `起きて使える時間は 約${Math.floor(years * (1 - SLEEP_FRACTION))}年` },
+      { id: 'counts', label: 'あと何回、めぐってくる?', value: `桜 ${yearlyCount}回 ・ 年末 ${yearlyCount}回`, sub: `満月は あと約${formatOku(moonCount)}回` },
+      { id: 'death-prob', label: '明日、無事に朝を迎えられる確率', value: `${surviveP}%`, sub: `それでも、宝くじ1等(約2000万分の1)より、明日が来ない可能性のほうが約${timesVsLottery}倍高い。だから、今日を大切に。` },
+      { id: 'parent-days', label: '親が見守ってくれた日々', value: `${TimeCalc.daysLived(person.birthDate, now).toLocaleString('en-US')} 日`, sub: 'あなたが生きてきた日数。この一日一日を、誰かが願ってくれました' },
+      { id: 'today-remaining', label: '今日、起きていられる時間', value: awakeValue, sub: '一日は、今日ももう戻ってきません' },
+    ];
+  }
+
+  return { formatOku, build };
+});
+</script>
+<script>/* 人生タイマー データ永続化 — localStorage互換オブジェクトを引数に取るDOM非依存実装 */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.LifeStore = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const KEY = 'life-timer-v1';
+  const GENDERS = ['male', 'female'];
+  const FREQ_RE = /^(daily|weekly|monthly|yearly-\d+)$/;
+  const RELATIONSHIP_RE = /^(child|parent|spouse|sibling|friend|other)$/;
+  const PRIORITIES_REQUIRED = ['家族', '仕事', '自分', '余暇', '睡眠'];
+
+  function emptyData() {
+    return { version: 1, self: null, family: [], wishes: [], today: null, priorities: null, streak: null, reflections: [], gacha: null };
+  }
+
+  function isDateFormat(s) {
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  }
+
+  function isValidDateStr(s) {
+    if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    const d = new Date(s + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return false;
+    const now = new Date();
+    if (d > now) return false;
+    if (now.getFullYear() - d.getFullYear() > 150) return false;
+    // ラウンドトリップ検証: 入力の年月日と解析後の年月日が一致することを確認
+    const [year, month, day] = s.split('-').map(Number);
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== month || d.getDate() !== day) return false;
+    return true;
+  }
+
+  function validPerson(p) {
+    if (!p || typeof p !== 'object') return '人物データが不正です';
+    if (!isValidDateStr(p.birthDate)) return '誕生日が不正です(未来日付・150年以上前は不可)';
+    if (!GENDERS.includes(p.gender)) return '性別が不正です';
+    if (p.customLifespan != null &&
+        !(typeof p.customLifespan === 'number' && p.customLifespan > 0 && p.customLifespan <= 150)) {
+      return '目標寿命が不正です(1〜150)';
+    }
+    return null;
+  }
+
+  function validate(data) {
+    if (!data || typeof data !== 'object') return { ok: false, error: 'データがオブジェクトではありません' };
+    if (data.version !== 1) return { ok: false, error: '未対応のデータバージョンです' };
+    if (data.self !== null) {
+      const e = validPerson(data.self);
+      if (e) return { ok: false, error: '本人: ' + e };
+    }
+    if (!Array.isArray(data.family)) return { ok: false, error: 'family が配列ではありません' };
+    for (const f of data.family) {
+      if (typeof f.id !== 'string' || f.id === '') return { ok: false, error: '家族のIDが不正です' };
+      const e = validPerson(f);
+      if (e) return { ok: false, error: '家族: ' + e };
+      if (typeof f.name !== 'string' || f.name === '') return { ok: false, error: '家族の名前が空です' };
+      if (typeof f.meetFrequency !== 'string' || !FREQ_RE.test(f.meetFrequency)) {
+        return { ok: false, error: '会う頻度が不正です' };
+      }
+      if (f.relationship != null && !RELATIONSHIP_RE.test(f.relationship)) {
+        return { ok: false, error: '家族の続柄が不正です' };
+      }
+    }
+    if (!Array.isArray(data.wishes)) return { ok: false, error: 'wishes が配列ではありません' };
+    for (const w of data.wishes) {
+      if (!w || typeof w.title !== 'string' || w.title === '') return { ok: false, error: 'やりたいことのタイトルが不正です' };
+      if (typeof w.done !== 'boolean') return { ok: false, error: 'done がboolean ではありません' };
+      if (typeof w.id !== 'string' || w.id === '') return { ok: false, error: 'やりたいことのIDが不正です' };
+      if (typeof w.createdAt !== 'string' || w.createdAt === '') return { ok: false, error: 'createdAt が不正です' };
+      if (w.doneAt !== null && (typeof w.doneAt !== 'string' || w.doneAt === '')) {
+        return { ok: false, error: 'doneAt が不正です' };
+      }
+      if (w.targetAge != null &&
+          !(typeof w.targetAge === 'number' && w.targetAge > 0 && w.targetAge <= 150)) {
+        return { ok: false, error: '目標年齢が不正です(1〜150)' };
+      }
+      if (w.pinned != null && typeof w.pinned !== 'boolean') {
+        return { ok: false, error: 'pinned がboolean ではありません' };
+      }
+    }
+    if (data.priorities != null) {
+      if (!Array.isArray(data.priorities) || data.priorities.length !== PRIORITIES_REQUIRED.length
+          || !PRIORITIES_REQUIRED.every((r) => data.priorities.includes(r))) {
+        return { ok: false, error: 'priorities の内容が不正です' };
+      }
+    }
+    if (data.streak != null) {
+      const s = data.streak;
+      if (typeof s !== 'object' || !isDateFormat(s.last)
+          || !Number.isInteger(s.run) || s.run < 1
+          || !Number.isInteger(s.total) || s.total < 1
+          || s.run > s.total) {
+        return { ok: false, error: 'streak が不正です' };
+      }
+    }
+    if (data.reflections != null) {
+      if (!Array.isArray(data.reflections)) return { ok: false, error: 'reflections が配列ではありません' };
+      for (const r of data.reflections) {
+        if (!r || !isDateFormat(r.date)) return { ok: false, error: '問いの記録の日付が不正です' };
+        if (!Number.isInteger(r.q) || r.q < 0) return { ok: false, error: '問いの記録のindexが不正です' };
+        if (typeof r.text !== 'string' || r.text === '') return { ok: false, error: '問いの記録のテキストが不正です' };
+      }
+    }
+    if (data.today != null) {
+      const t = data.today;
+      if (typeof t !== 'object') return { ok: false, error: 'today が不正です' };
+      if (typeof t.date !== 'string' || t.date === '') return { ok: false, error: '今日の宣言の日付が不正です' };
+      if (typeof t.text !== 'string' || t.text === '') return { ok: false, error: '今日の宣言のテキストが不正です' };
+      if (typeof t.done !== 'boolean') return { ok: false, error: '今日の宣言の done が不正です' };
+    }
+    if (data.gacha != null) {
+      const g = data.gacha;
+      if (typeof g !== 'object') return { ok: false, error: 'gacha が不正です' };
+      if (!isDateFormat(g.date)) return { ok: false, error: 'gacha.date が不正です' };
+      if (!Number.isInteger(g.totalXp) || g.totalXp < 0) return { ok: false, error: 'gacha.totalXp が不正です' };
+      if (g.current != null) {
+        const c = g.current;
+        if (typeof c.id !== 'string' || c.id === '') return { ok: false, error: 'gacha.current.id が不正です' };
+        if (!['N', 'R', 'SR', 'SSR'].includes(c.rarity)) return { ok: false, error: 'gacha.current.rarity が不正です' };
+        if (typeof c.text !== 'string' || c.text === '') return { ok: false, error: 'gacha.current.text が不正です' };
+        if (typeof c.xp !== 'number' || c.xp <= 0) return { ok: false, error: 'gacha.current.xp が不正です' };
+        if (typeof c.done !== 'boolean') return { ok: false, error: 'gacha.current.done が不正です' };
+      }
+      if (!Array.isArray(g.history)) return { ok: false, error: 'gacha.history が配列ではありません' };
+      for (const h of g.history) {
+        if (!isDateFormat(h.date)) return { ok: false, error: 'gacha.history[].date が不正です' };
+        if (!['N', 'R', 'SR', 'SSR'].includes(h.rarity)) return { ok: false, error: 'gacha.history[].rarity が不正です' };
+        if (typeof h.text !== 'string' || h.text === '') return { ok: false, error: 'gacha.history[].text が不正です' };
+      }
+    }
+    return { ok: true };
+  }
+
+  function load(storage) {
+    const raw = storage.getItem(KEY);
+    if (raw === null) return { data: emptyData(), corrupt: false };
+    try {
+      const data = JSON.parse(raw);
+      if (!validate(data).ok) return { data: null, corrupt: true };
+      return { data, corrupt: false };
+    } catch (_) {
+      return { data: null, corrupt: true };
+    }
+  }
+
+  function save(storage, data) {
+    storage.setItem(KEY, JSON.stringify(data));
+  }
+
+  function exportJSON(data) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  function importJSON(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      return { ok: false, error: 'JSONとして読み取れません' };
+    }
+    const v = validate(data);
+    if (!v.ok) return { ok: false, error: v.error };
+    return { ok: true, data };
+  }
+
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // ストリーク更新(純関数)。同日なら同一オブジェクトを返す。totalは決して減らない
+  function advanceStreak(streak, todayStr) {
+    if (streak && streak.last === todayStr) return streak;
+    const d = new Date(todayStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const p = (n) => String(n).padStart(2, '0');
+    const yesterday = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    if (streak && streak.last === yesterday) {
+      return { last: todayStr, run: streak.run + 1, total: streak.total + 1 };
+    }
+    return { last: todayStr, run: 1, total: (streak ? streak.total : 0) + 1 };
+  }
+
+  return { KEY, emptyData, validate, load, save, exportJSON, importJSON, newId, isValidDateStr, advanceStreak };
+});
+</script>
+<script>/* 人生タイマー UI */
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  // --- 状態 ---
+  let data = null;
+  let deathDates = { self: null, family: new Map() }; // データ変更時にのみ再計算
+  let timerId = null;
+  let selfView = 'timer'; // 'timer' | 'settings'
+  let celebrateTimer = null;
+
+  // --- 格言バナー ---
+  let quoteOrder = [];
+  let quotePos = 0;
+  function shuffleQuotes() {
+    quoteOrder = Quotes.LIST.map((_, i) => i);
+    for (let i = quoteOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [quoteOrder[i], quoteOrder[j]] = [quoteOrder[j], quoteOrder[i]];
+    }
+    quotePos = 0;
+  }
+  function showQuote() {
+    if (quoteOrder.length === 0) shuffleQuotes();
+    const q = Quotes.LIST[quoteOrder[quotePos]];
+    $('quote-text').textContent = '「' + q.text + '」';
+    $('quote-author').textContent = '— ' + q.author;
+    const banner = $('quote-banner');
+    banner.style.animation = 'none';
+    void banner.offsetWidth; // reflow で再アニメーション
+    banner.style.animation = '';
+  }
+  function nextQuote() {
+    quotePos++;
+    if (quotePos >= quoteOrder.length) shuffleQuotes();
+    showQuote();
+  }
+  $('quote-banner').addEventListener('click', nextQuote);
+
+  function recomputeDeathDates() {
+    const now = new Date();
+    deathDates.self = data.self ? TimeCalc.expectedDeathDate(data.self, now) : null;
+    deathDates.family = new Map(
+      data.family.map((f) => [f.id, TimeCalc.expectedDeathDate(f, now)])
+    );
+  }
+
+  function persist() {
+    LifeStore.save(localStorage, data);
+    recomputeDeathDates();
+    render();
+  }
+
+  // --- タブ ---
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      $('screen-' + btn.dataset.tab).classList.add('active');
+      btn.classList.add('active');
+      tick(); // 切替先の画面(わたし/見つめる)を即座に最新表示にする
+    });
+  });
+
+  // --- わたし画面 ---
+  function formatBreakdown(b) {
+    if (b.expired) return 'おめでとうございます。統計を超えて生きています';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${b.years}年 ${b.months}ヶ月 ${b.days}日 ${pad(b.hours)}:${pad(b.minutes)}:${pad(b.seconds)}`;
+  }
+
+  function renderSelf() {
+    const has = !!data.self;
+    $('onboarding').hidden = has;
+    $('self-timer').hidden = !has || selfView !== 'timer';
+    $('settings').hidden = !has || selfView !== 'settings';
+    if (!has) return;
+    const now = new Date();
+    const b = TimeCalc.breakdown(now, deathDates.self);
+    const c = $('countdown');
+    if (b.expired) {
+      c.textContent = formatBreakdown(b);
+    } else {
+      // 時刻部(HH:MM:SS)の途中で折り返されないよう、日付部と時刻部を別spanにする
+      const pad = (n) => String(n).padStart(2, '0');
+      c.textContent = '';
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'countdown-date';
+      dateSpan.textContent = `${b.years}年 ${b.months}ヶ月 ${b.days}日 `;
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'countdown-time';
+      timeSpan.textContent = `${pad(b.hours)}:${pad(b.minutes)}:${pad(b.seconds)}`;
+      c.append(dateSpan, timeSpan);
+    }
+    const pct = TimeCalc.progressPercent(data.self.birthDate, deathDates.self, now);
+    $('progress-bar').style.width = pct.toFixed(2) + '%';
+    $('progress-text').textContent = `人生の ${pct.toFixed(1)}% を生きました`;
+    const pinned = data.wishes.find((w) => w.pinned && !w.done);
+    const banner = $('dream-banner');
+    banner.hidden = !pinned;
+    if (pinned) $('dream-title').textContent = pinned.title;
+    renderStreak();
+  }
+
+  // --- ストリーク ---
+  function renderStreak() {
+    const el = $('streak-line');
+    if (!data.self || !data.streak) { el.hidden = true; return; }
+    el.hidden = false;
+    const s = data.streak;
+    if (s.run >= 2) el.textContent = `🔥 ${s.run}日連続 · 通算${s.total}日`;
+    else if (s.total > 1) el.textContent = `また今日から · 通算${s.total}日`;
+    else el.textContent = '今日から記録がはじまりました';
+  }
+
+  $('onboarding-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const birthDate = $('ob-birth').value;
+    if (!LifeStore.isValidDateStr(birthDate)) {
+      alert('誕生日が不正です(未来日付・150年以上前は入力できません)');
+      return;
+    }
+    data.self = { name: '', birthDate, gender: $('ob-gender').value, customLifespan: null };
+    persist();
+  });
+
+  // --- 優先順位 ---
+  const DEFAULT_PRIORITIES = ['家族', '仕事', '自分', '余暇', '睡眠'];
+
+  function renderPriorities() {
+    const section = $('priority-section');
+    if (!data.self) { section.hidden = true; return; }
+    section.hidden = false;
+    const items = data.priorities || DEFAULT_PRIORITIES;
+    const list = $('priority-list');
+    list.textContent = '';
+    items.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.className = 'priority-item';
+      li.innerHTML = `<span class="priority-label"></span>
+        <button class="ghost-btn pri-btn" data-pri-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="上へ">↑</button>
+        <button class="ghost-btn pri-btn" data-pri-down="${i}" ${i === items.length - 1 ? 'disabled' : ''} aria-label="下へ">↓</button>`;
+      li.querySelector('.priority-label').textContent = item;
+      list.appendChild(li);
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const upIdx = e.target.dataset && e.target.dataset.priUp;
+    const downIdx = e.target.dataset && e.target.dataset.priDown;
+    if (upIdx == null && downIdx == null) return;
+    const idx = upIdx != null ? Number(upIdx) : Number(downIdx);
+    const items = [...(data.priorities || DEFAULT_PRIORITIES)];
+    const swapWith = upIdx != null ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= items.length) return;
+    [items[idx], items[swapWith]] = [items[swapWith], items[idx]];
+    data.priorities = items;
+    persist();
+  });
+
+  // --- 今日の宣言 ---
+  function todayStr(now) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  }
+  function currentToday() {
+    if (data.today && data.today.date === todayStr(new Date())) return data.today;
+    return null;
+  }
+  function renderToday() {
+    if (!data.self) { $('today-declaration').hidden = true; return; }
+    $('today-declaration').hidden = false;
+    const t = currentToday();
+    $('today-form').hidden = !!t;
+    $('today-set').hidden = !t;
+    if (t) {
+      $('today-text').textContent = t.text;
+      $('today-done').checked = t.done;
+      $('today-set').classList.toggle('done', t.done);
+    } else {
+      if (document.activeElement !== $('today-input')) {
+        $('today-input').value = '';
+      }
+    }
+  }
+  $('today-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('today-input').value.trim();
+    if (!text) return;
+    data.today = { date: todayStr(new Date()), text, done: false };
+    persist();
+  });
+  $('today-done').addEventListener('change', (e) => {
+    if (!data.today) return;
+    data.today.done = e.target.checked;
+    if (e.target.checked) celebrate();
+    persist();
+  });
+  $('today-clear').addEventListener('click', () => {
+    data.today = null;
+    persist();
+  });
+
+  // --- 今日の問い ---
+  let reflectionSavedTimer = null;
+
+  function renderQuestion() {
+    const card = $('question-card');
+    if (!data.self) { card.hidden = true; return; }
+    card.hidden = false;
+    const today = todayStr(new Date());
+    const qi = Questions.indexFor(today);
+    $('question-text').textContent = Questions.LIST[qi];
+
+    // 同じ問いへの過去の答え(直近1件)があれば「再会」表示
+    const past = data.reflections
+      .filter((r) => r.q === qi && r.date < today)
+      .sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+    const pastEl = $('question-past');
+    if (past) {
+      const [y, m, d] = past.date.split('-').map(Number);
+      const label = y === new Date().getFullYear() ? `${m}月${d}日` : `${y}年${m}月${d}日`;
+      pastEl.textContent = `前回(${label})のあなた: 「${past.text}」`;
+      pastEl.hidden = false;
+    } else {
+      pastEl.hidden = true;
+    }
+
+    // 当日分を入力欄に反映(入力中はユーザーの手を邪魔しない)
+    const input = $('reflection-input');
+    if (document.activeElement !== input) {
+      const mine = data.reflections.find((r) => r.date === today);
+      input.value = mine ? mine.text : '';
+    }
+  }
+
+  $('reflection-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('reflection-input').value.trim();
+    if (!text) return;
+    const today = todayStr(new Date());
+    const qi = Questions.indexFor(today);
+    const existing = data.reflections.find((r) => r.date === today);
+    if (existing) { existing.q = qi; existing.text = text; }
+    else data.reflections.push({ date: today, q: qi, text });
+    persist();
+    const saved = $('reflection-saved');
+    saved.hidden = false;
+    clearTimeout(reflectionSavedTimer);
+    reflectionSavedTimer = setTimeout(() => { saved.hidden = true; }, 1600);
+  });
+
+  // --- 見つめる画面 ---
+  function renderInsight() {
+    const has = !!data.self;
+    $('insight-empty').hidden = has;
+    const wrap = $('insight-cards');
+    if (!has) { wrap.textContent = ''; return; }
+    const cards = Insight.build(data.self, deathDates.self, new Date());
+    // 毎秒呼ばれるので、枚数が同じなら要素を作り直さず value/sub だけ更新
+    if (wrap.childElementCount !== cards.length) {
+      wrap.textContent = '';
+      for (const c of cards) {
+        const el = document.createElement('div');
+        el.className = 'insight-card';
+        el.dataset.id = c.id;
+        el.innerHTML = '<p class="insight-label"></p><p class="insight-value"></p><p class="insight-sub"></p>';
+        wrap.appendChild(el);
+      }
+    }
+    const els = wrap.children;
+    cards.forEach((c, i) => {
+      const el = els[i];
+      el.querySelector('.insight-label').textContent = c.label;
+      el.querySelector('.insight-value').textContent = c.value;
+      el.querySelector('.insight-sub').textContent = c.sub;
+    });
+  }
+
+  // --- Life in Weeks ---
+  function renderWeeks() {
+    const section = $('weeks-grid-section');
+    if (!data.self) { section.hidden = true; return; }
+    section.hidden = false;
+    const grid = $('weeks-grid');
+    const TOTAL = 90 * 52; // 4680
+
+    if (grid.childElementCount !== TOTAL) {
+      const frag = document.createDocumentFragment();
+      for (let i = 0; i < TOTAL; i++) {
+        const cell = document.createElement('span');
+        frag.appendChild(cell);
+      }
+      grid.appendChild(frag);
+    }
+
+    const birth = TimeCalc.parseDate(data.self.birthDate);
+    const now = new Date();
+    const weeksLived = Math.floor((now - birth) / (7 * 24 * 60 * 60 * 1000));
+    const cells = grid.children;
+    for (let i = 0; i < cells.length; i++) {
+      if (i < weeksLived) cells[i].className = 'wc p';
+      else if (i === weeksLived) cells[i].className = 'wc c';
+      else cells[i].className = 'wc f';
+    }
+  }
+
+  // --- 家族画面 ---
+  const FREQ_LABEL = {
+    daily: '毎日会うなら', weekly: '週1で会うなら', monthly: '月1で会うなら',
+    'yearly-2': '年2回会うなら', 'yearly-1': '年1回会うなら',
+  };
+  let editingFamilyId = null;
+
+  function renderFamily() {
+    const list = $('family-list');
+    list.textContent = '';
+    $('family-empty').hidden = data.family.length > 0;
+    const now = new Date();
+    for (const f of data.family) {
+      const death = deathDates.family.get(f.id);
+      const b = TimeCalc.breakdown(now, death);
+      const rel = f.relationship || 'other';
+      const li = document.createElement('li');
+      li.className = 'family-card';
+
+      let meetsHtml = '';
+      if (rel === 'child') {
+        const hug = TimeCalc.childRemainingDays(f.birthDate, 6, now);
+        const live = TimeCalc.childRemainingDays(f.birthDate, 18, now);
+        if (!hug.expired) {
+          meetsHtml += `<p class="child-days">抱っこできる残り <strong>${hug.days.toLocaleString()}日</strong></p>`;
+        }
+        if (!live.expired) {
+          meetsHtml += `<p class="child-days">一緒に暮らせる残り <strong>${live.days.toLocaleString()}日</strong></p>`;
+        }
+        if (hug.expired && live.expired) {
+          const meets = data.self && deathDates.self
+            ? TimeCalc.meetCount(deathDates.self, death, f.meetFrequency, now) : null;
+          meetsHtml = meets === null ? '<p class="family-meets">わたしの誕生日を設定すると回数が出ます</p>'
+            : `<p class="family-meets">${FREQ_LABEL[f.meetFrequency] || '会うなら'} <strong class="meets-num">あと${meets}回</strong></p>`;
+        }
+      } else {
+        const meets = data.self && deathDates.self
+          ? TimeCalc.meetCount(deathDates.self, death, f.meetFrequency, now) : null;
+        const meetsClass = (rel === 'parent' || rel === 'spouse') ? 'family-meets emphasis' : 'family-meets';
+        meetsHtml = meets === null ? `<p class="${meetsClass}">わたしの誕生日を設定すると回数が出ます</p>`
+          : `<p class="${meetsClass}">${FREQ_LABEL[f.meetFrequency] || '会うなら'} <strong class="meets-num">あと${meets}回</strong></p>`;
+      }
+
+      li.innerHTML = `<div class="family-head"><strong></strong><button class="ghost-btn" data-edit="${f.id}">編集</button></div>
+        <p class="family-remain">残り ${b.expired ? '—' : `${b.years}年${b.months}ヶ月`}</p>
+        ${meetsHtml}`;
+      li.querySelector('strong').textContent = f.name;
+      list.appendChild(li);
+    }
+  }
+
+  $('family-list').addEventListener('click', (e) => {
+    const id = e.target.dataset && e.target.dataset.edit;
+    if (!id) return;
+    const f = data.family.find((x) => x.id === id);
+    if (!f) return;
+    editingFamilyId = id;
+    $('family-dialog-title').textContent = '家族を編集';
+    $('fam-name').value = f.name;
+    $('fam-birth').value = f.birthDate;
+    $('fam-gender').value = f.gender;
+    $('fam-relation').value = f.relationship || 'other';
+    $('fam-freq').value = f.meetFrequency;
+    $('fam-delete').hidden = false;
+    $('family-dialog').showModal();
+  });
+
+  $('add-family').addEventListener('click', () => {
+    editingFamilyId = null;
+    $('family-dialog-title').textContent = '家族を追加';
+    $('family-form').reset();
+    $('fam-delete').hidden = true;
+    $('family-dialog').showModal();
+  });
+
+  $('family-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const birthDate = $('fam-birth').value;
+    if (!LifeStore.isValidDateStr(birthDate)) {
+      alert('誕生日が不正です');
+      return;
+    }
+    const rec = {
+      id: editingFamilyId || LifeStore.newId(),
+      name: $('fam-name').value.trim(),
+      birthDate,
+      gender: $('fam-gender').value,
+      customLifespan: null,
+      relationship: $('fam-relation').value,
+      meetFrequency: $('fam-freq').value,
+    };
+    if (editingFamilyId) {
+      data.family = data.family.map((f) => (f.id === editingFamilyId ? rec : f));
+    } else {
+      data.family.push(rec);
+    }
+    persist();
+    $('family-dialog').close();
+  });
+
+  $('fam-delete').addEventListener('click', () => {
+    if (!confirm('この家族を削除しますか?')) return;
+    data.family = data.family.filter((f) => f.id !== editingFamilyId);
+    $('family-dialog').close();
+    persist();
+  });
+
+  $('fam-cancel').addEventListener('click', () => $('family-dialog').close());
+
+  // --- やりたいこと画面 ---
+  function wishRemainLabel(w) {
+    if (!w.targetAge || !data.self) return '';
+    const deadline = TimeCalc.parseDate(data.self.birthDate);
+    deadline.setFullYear(deadline.getFullYear() + w.targetAge);
+    const b = TimeCalc.breakdown(new Date(), deadline);
+    return b.expired ? `${w.targetAge}歳までに(期限超過)` : `${w.targetAge}歳まで 残り${b.years}年${b.months}ヶ月`;
+  }
+
+  function renderWishes() {
+    const list = $('wish-list');
+    const doneList = $('wish-done-list');
+    list.textContent = '';
+    doneList.textContent = '';
+    const active = data.wishes.filter((w) => !w.done);
+    const done = data.wishes.filter((w) => w.done);
+    $('wish-empty').hidden = active.length > 0;
+    $('done-count').textContent = done.length ? `${done.length}個` : '';
+    for (const w of active) {
+      const li = document.createElement('li');
+      li.className = 'wish-item';
+      li.innerHTML = `<label><input type="checkbox" data-wish="${w.id}"> <span class="wish-title"></span></label>
+        <span class="wish-remain">${wishRemainLabel(w)}</span>
+        <button class="pin-btn${w.pinned ? ' pinned' : ''}" data-pin="${w.id}" aria-label="今の夢にする">${w.pinned ? '★' : '☆'}</button>
+        <button class="ghost-btn" data-del-wish="${w.id}" aria-label="削除">×</button>`;
+      li.querySelector('.wish-title').textContent = w.title;
+      list.appendChild(li);
+    }
+    for (const w of done) {
+      const li = document.createElement('li');
+      li.className = 'wish-item done';
+      li.innerHTML = `<label><input type="checkbox" checked data-wish="${w.id}"> <span class="wish-title"></span></label>
+        <button class="ghost-btn" data-del-wish="${w.id}" aria-label="削除">×</button>`;
+      li.querySelector('.wish-title').textContent = w.title;
+      doneList.appendChild(li);
+    }
+  }
+
+  $('wish-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const title = $('wish-title').value.trim();
+    if (!title) return;
+    const age = $('wish-age').value ? Number($('wish-age').value) : null;
+    data.wishes.push({
+      id: LifeStore.newId(), title, targetAge: age,
+      done: false, createdAt: new Date().toISOString().slice(0, 10), doneAt: null,
+    });
+    $('wish-form').reset();
+    persist();
+  });
+
+  function celebrate() {
+    clearTimeout(celebrateTimer);
+    const el = $('celebrate');
+    el.textContent = '';
+    for (let i = 0; i < 24; i++) {
+      const s = document.createElement('span');
+      s.className = 'confetti';
+      s.style.left = Math.random() * 100 + 'vw';
+      s.style.animationDelay = Math.random() * 0.4 + 's';
+      s.style.background = ['#ff8a3d', '#ffd23d', '#3dbf6e', '#3d9bff'][i % 4];
+      el.appendChild(s);
+    }
+    el.hidden = false;
+    celebrateTimer = setTimeout(() => { el.hidden = true; }, 2200);
+  }
+
+  document.addEventListener('change', (e) => {
+    const id = e.target.dataset && e.target.dataset.wish;
+    if (!id) return;
+    const w = data.wishes.find((x) => x.id === id);
+    if (!w) return;
+    w.done = e.target.checked;
+    w.doneAt = w.done ? new Date().toISOString().slice(0, 10) : null;
+    if (w.done) celebrate();
+    persist();
+  });
+
+  document.addEventListener('click', (e) => {
+    const id = e.target.dataset && e.target.dataset.delWish;
+    if (!id) return;
+    if (!confirm('このやりたいことを削除しますか?')) return;
+    data.wishes = data.wishes.filter((x) => x.id !== id);
+    persist();
+  });
+
+  document.addEventListener('click', (e) => {
+    const id = e.target.dataset && e.target.dataset.pin;
+    if (!id) return;
+    const wasPin = !!(data.wishes.find((w) => w.id === id) || {}).pinned;
+    data.wishes.forEach((w) => { w.pinned = false; });
+    if (!wasPin) {
+      const w = data.wishes.find((w) => w.id === id);
+      if (w && !w.done) w.pinned = true;
+    }
+    persist();
+  });
+
+  // --- 設定・バックアップ ---
+  $('open-settings').addEventListener('click', () => {
+    if (!data || !data.self) return;
+    $('set-birth').value = data.self.birthDate;
+    $('set-gender').value = data.self.gender;
+    $('set-lifespan').value = data.self.customLifespan || '';
+    selfView = 'settings';
+    renderSelf();
+  });
+
+  $('close-settings').addEventListener('click', () => {
+    selfView = 'timer';
+    renderSelf();
+  });
+
+  $('settings-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const birthDate = $('set-birth').value;
+    if (!LifeStore.isValidDateStr(birthDate)) {
+      alert('誕生日が不正です');
+      return;
+    }
+    const span = $('set-lifespan').value.trim();
+    let customLifespan = null;
+    if (span) {
+      const n = Number(span);
+      if (!Number.isFinite(n) || n < 1 || n > 150) {
+        alert('目標寿命は1〜150の数字で入力してください(未設定なら空欄)');
+        return;
+      }
+      customLifespan = n;
+    }
+    data.self = {
+      name: data.self.name || '',
+      birthDate,
+      gender: $('set-gender').value,
+      customLifespan,
+    };
+    selfView = 'timer';
+    persist();
+  });
+
+  function downloadJSON() {
+    const blob = new Blob([LifeStore.exportJSON(data)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `life-timer-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  $('export-json').addEventListener('click', downloadJSON);
+
+  function readImportFile(file, onOk, resultId = 'import-result') {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = LifeStore.importJSON(String(reader.result));
+      if (!r.ok) {
+        $(resultId).textContent = '読み込めませんでした: ' + r.error;
+        return;
+      }
+      onOk(r.data);
+    };
+    reader.onerror = () => {
+      $(resultId).textContent = '読み込めませんでした: ファイル読み取りエラー';
+    };
+    reader.readAsText(file);
+  }
+
+  $('import-json').addEventListener('change', (e) => {
+    if (!e.target.files[0]) return;
+    if (!confirm('現在のデータを読み込んだ内容で置き換えます。よろしいですか?')) return;
+    readImportFile(e.target.files[0], (d) => {
+      data = d;
+      $('import-result').textContent = '読み込みました';
+      $('settings').hidden = true;
+      persist();
+    });
+    e.target.value = '';
+  });
+
+  // --- 破損復旧(init内のcorrupt分岐から使う) ---
+  $('restore-json').addEventListener('change', (e) => {
+    if (!e.target.files[0]) return;
+    readImportFile(e.target.files[0], (d) => {
+      data = d;
+      LifeStore.save(localStorage, data);
+      location.reload();
+    }, 'restore-result');
+    e.target.value = '';
+  });
+
+  $('reset-data').addEventListener('click', () => {
+    if (!confirm('保存データを消して最初からやり直します。よろしいですか?')) return;
+    LifeStore.save(localStorage, LifeStore.emptyData());
+    location.reload();
+  });
+
+  // --- ガチャ ---
+  function renderGacha() {
+    const section = $('gacha-section');
+    if (!data.self) { section.hidden = true; return; }
+    section.hidden = false;
+
+    const g = data.gacha;
+    const totalXp = g ? g.totalXp : 0;
+    const { level, xpInLevel, xpNeeded } = Gacha.levelFromXp(totalXp);
+    $('gacha-lv-badge').textContent = 'Lv.' + level;
+    $('gacha-xp-fill').style.width = Math.min(100, (xpInLevel / xpNeeded) * 100).toFixed(1) + '%';
+    $('gacha-xp-label').textContent = `XP: ${xpInLevel} / ${xpNeeded}`;
+
+    const today = todayStr(new Date());
+    const pulledToday = g && g.date === today && g.current;
+
+    $('gacha-pull-area').hidden = !!pulledToday;
+    $('gacha-result-area').hidden = !pulledToday;
+
+    if (pulledToday) {
+      const c = g.current;
+      const card = $('gacha-result-card');
+      card.className = 'gacha-result-card rarity-' + c.rarity.toLowerCase();
+      $('gacha-rarity-badge').textContent = c.rarity;
+      $('gacha-challenge-text').textContent = c.text;
+      const check = $('gacha-done-check');
+      check.checked = c.done;
+      const earned = $('gacha-xp-earned');
+      if (c.done) {
+        earned.textContent = '+' + c.xp + ' XP 獲得！';
+        earned.hidden = false;
+      } else {
+        earned.hidden = true;
+      }
+    }
+
+    const histSection = $('gacha-history-section');
+    const history = g ? g.history : [];
+    histSection.hidden = history.length === 0;
+    if (history.length > 0) {
+      $('gacha-history-count').textContent = history.length + '件';
+      const list = $('gacha-history-list');
+      list.textContent = '';
+      const recent = [...history].reverse().slice(0, 20);
+      for (const h of recent) {
+        const li = document.createElement('li');
+        li.className = 'gacha-history-item';
+        const [, m, d] = h.date.split('-').map(Number);
+        li.innerHTML = `<span class="gacha-history-badge rarity-${h.rarity.toLowerCase()}"></span><span class="gacha-history-text"></span><span class="gacha-history-date">${m}/${d}</span>`;
+        li.querySelector('.gacha-history-badge').textContent = h.rarity;
+        li.querySelector('.gacha-history-text').textContent = h.text;
+        list.appendChild(li);
+      }
+    }
+  }
+
+  function openGachaOverlay(challenge) {
+    const overlay = $('gacha-overlay');
+    const card = $('go-card');
+    const front = $('go-front');
+    const back = $('go-back');
+    const hint = $('go-hint');
+
+    card.className = 'go-card go-spinning';
+    front.hidden = false;
+    back.hidden = true;
+    hint.textContent = '引いています…';
+    overlay.hidden = false;
+
+    setTimeout(() => {
+      card.className = 'go-card';
+      front.hidden = true;
+      back.hidden = false;
+      back.className = 'go-back rarity-' + challenge.rarity.toLowerCase();
+      $('go-rarity').textContent = challenge.rarity;
+      $('go-text').textContent = challenge.text;
+      $('go-xp').textContent = '+' + challenge.xp + ' XP';
+      hint.textContent = 'タップして閉じる';
+
+      if (challenge.rarity === 'SR' || challenge.rarity === 'SSR') celebrate();
+      overlay.addEventListener('click', () => {
+        overlay.hidden = true;
+        renderGacha();
+      }, { once: true });
+    }, 1200);
+  }
+
+  $('gacha-pull-btn').addEventListener('click', () => {
+    const today = todayStr(new Date());
+    if (data.gacha && data.gacha.date === today) return;
+    const challenge = Gacha.pull();
+    if (!data.gacha) data.gacha = { date: today, current: null, history: [], totalXp: 0 };
+    data.gacha.date = today;
+    data.gacha.current = { ...challenge, done: false };
+    LifeStore.save(localStorage, data);
+    openGachaOverlay(challenge);
+  });
+
+  $('gacha-done-check').addEventListener('change', (e) => {
+    if (!data.gacha || !data.gacha.current) return;
+    const wasAlreadyDone = data.gacha.current.done;
+    data.gacha.current.done = e.target.checked;
+    if (e.target.checked && !wasAlreadyDone) {
+      const c = data.gacha.current;
+      data.gacha.totalXp += c.xp;
+      data.gacha.history.push({ date: data.gacha.date, rarity: c.rarity, text: c.text, xp: c.xp });
+      celebrate();
+    } else if (!e.target.checked && wasAlreadyDone) {
+      const c = data.gacha.current;
+      data.gacha.totalXp = Math.max(0, data.gacha.totalXp - c.xp);
+      data.gacha.history = data.gacha.history.filter((h) => !(h.date === data.gacha.date && h.text === c.text));
+    }
+    LifeStore.save(localStorage, data);
+    renderGacha();
+  });
+
+  // --- 毎秒更新 ---
+  let lastTickDate = todayStr(new Date());
+
+  function tick() {
+    if (!data || !data.self) return;
+    const today = todayStr(new Date());
+    if (today !== lastTickDate) {
+      lastTickDate = today;
+      const newStreak = LifeStore.advanceStreak(data.streak, today);
+      if (newStreak !== data.streak) { data.streak = newStreak; LifeStore.save(localStorage, data); }
+    }
+    if ($('screen-self').classList.contains('active')) { renderSelf(); renderPriorities(); renderToday(); renderQuestion(); renderGacha(); }
+    if ($('screen-insight').classList.contains('active')) { renderInsight(); renderWeeks(); }
+  }
+
+  function render() {
+    renderSelf();
+    renderPriorities();
+    renderToday();
+    renderQuestion();
+    renderGacha();
+    renderInsight();
+    renderWeeks();
+    renderFamily();
+    renderWishes();
+  }
+
+  // --- 起動 ---
+  function init() {
+    shuffleQuotes();
+    showQuote();
+    const r = LifeStore.load(localStorage);
+    if (r.corrupt) {
+      $('corrupt-notice').hidden = false;
+      $('onboarding').hidden = true;
+      return; // 黙って初期化しない(復元/リセットはTask 8で配線)
+    }
+    data = r.data;
+    if (!data.reflections) data.reflections = [];
+    if (!data.gacha) data.gacha = null;
+    const todayForStreak = todayStr(new Date());
+    const newStreak = LifeStore.advanceStreak(data.streak, todayForStreak);
+    if (newStreak !== data.streak) { data.streak = newStreak; LifeStore.save(localStorage, data); }
+    recomputeDeathDates();
+    render();
+    timerId = setInterval(tick, 1000);
+  }
+
+  window.LifeApp = { get data() { return data; }, render, formatBreakdown };
+
+  // PWA: file:直開き配布でも動くようhttp(s)時のみ登録
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

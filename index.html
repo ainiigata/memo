@@ -11,14 +11,14 @@
   <main class="app-shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">今日の記憶デスク</p><h1>おかえりなさい、山田さん</h1></div></div>
-      <div class="top-actions"><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
+      <div class="top-actions"><a class="mode-link" href="./life-timer/index.html">人生タイマー ↗</a><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
     </header>
 
     <section class="capture-panel">
       <form id="capture-form">
         <textarea id="capture-input" aria-label="思いつきや予定を入力" placeholder="今、頭に浮かんだことをそのまま書く…&#10;例：来週の旅行、持ち物を考える"></textarea>
         <div class="prompt-row" aria-label="入力のきっかけ"><button type="button" class="prompt-chip" data-prompt="今日、ちょっと嬉しかったこと：">✦ 今日のひとこと</button><button type="button" class="prompt-chip" data-prompt="あとで試したいこと：">↗ 試したいこと</button><button type="button" class="prompt-chip" data-prompt="忘れたくないこと：">◌ 忘れたくないこと</button></div>
-        <div class="capture-footer"><span class="capture-hint">⌘ / でいつでもすぐ記録</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">💡 アイデア</option><option value="task">☑ タスク</option><option value="plan">◷ 予定</option><option value="note">✎ メモ</option></select><button class="primary-button" type="submit">保存する <span>↵</span></button></div></div>
+        <div class="capture-footer"><span class="capture-hint">⌘ / でいつでもすぐ記録</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">💡 アイデア</option><option value="task">☑ タスク</option><option value="plan">◷ 予定</option><option value="note">✎ メモ</option></select><input id="capture-date" class="date-input" type="date" aria-label="メモの日付" /><button class="primary-button" type="submit">保存する <span>↵</span></button></div></div>
       </form>
     </section>
 
@@ -30,8 +30,9 @@
     <section class="revisit-card" id="revisit-card"><div><p class="section-kicker">FROM YOUR MEMORY</p><h2>ふと、思い出してみる</h2><p id="revisit-text"></p></div><button id="revisit-button" class="soft-button" type="button">もうひとつ見る</button></section>
 
     <div class="search-row" id="search-row" hidden><input id="search-input" type="search" placeholder="メモを検索…" aria-label="メモを検索" /><button id="search-close" class="ghost-button" aria-label="検索を閉じる">×</button></div>
-    <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button></nav>
-    <section><div class="section-heading"><div><p class="section-kicker">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
+    <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button><button class="tab calendar-tab" role="tab" data-view="calendar">カレンダー</button></nav>
+    <section id="notes-section"><div class="section-heading"><div><p class="section-kicker">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
+    <section id="calendar-view" hidden><div class="calendar-toolbar"><button id="calendar-prev" class="ghost-button" type="button" aria-label="前の月">‹</button><h2 id="calendar-title"></h2><button id="calendar-next" class="ghost-button" type="button" aria-label="次の月">›</button></div><div class="calendar-actions"><p>予定メモをGoogleカレンダー用CSVで書き出せます</p><button id="export-calendar" class="soft-button" type="button">CSVを書き出す ↓</button></div><div class="calendar-weekdays"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div><div id="calendar-grid" class="calendar-grid"></div><div id="calendar-detail" class="calendar-detail"></div></section>
   </main>
   <script src="app.js"></script>
 </body>
