@@ -3,50 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#f7f5f0" />
+  <meta name="theme-color" content="#f6f1ea" />
+  <meta name="description" content="思いつきと人生の時間を、心地よく残すための記憶デスク" />
   <title>記憶デスク</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">今日の記憶デスク</p><h1>おかえりなさい、山田さん</h1></div></div>
-      <div class="top-actions"><button class="mode-link" id="life-mode-toggle" type="button">人生タイマー ◇</button><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
+      <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">A PERSONAL MEMORY SPACE</p><h1>記憶デスク</h1></div></div>
+      <div class="top-actions"><button class="mode-link" id="life-mode-toggle" type="button">人生タイマー</button><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button></div>
     </header>
+
+    <section class="memory-hero">
+      <p class="eyebrow">TODAY, GENTLY</p>
+      <h2 id="daily-message">今日の一瞬を残そう</h2>
+      <p id="daily-submessage">小さなことほど、あとで自分を助けてくれます。</p>
+    </section>
 
     <section class="capture-panel">
       <form id="capture-form">
-        <textarea id="capture-input" aria-label="思いつきや予定を入力" placeholder="今、頭に浮かんだことをそのまま書く…&#10;例：来週の旅行、持ち物を考える"></textarea>
+        <label class="capture-label" for="capture-input">頭の中にあることを、そのまま。</label>
+        <textarea id="capture-input" aria-label="思いつきや予定を入力" placeholder="思いつき、予定、忘れたくないこと…"></textarea>
         <div class="prompt-row" aria-label="入力のきっかけ"><button type="button" class="prompt-chip" data-prompt="今日、ちょっと嬉しかったこと：">✦ 今日のひとこと</button><button type="button" class="prompt-chip" data-prompt="あとで試したいこと：">↗ 試したいこと</button><button type="button" class="prompt-chip" data-prompt="忘れたくないこと：">◌ 忘れたくないこと</button></div>
-        <div class="capture-footer"><span class="capture-hint">⌘ / でいつでもすぐ記録</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">💡 アイデア</option><option value="task">☑ タスク</option><option value="plan">◷ 予定</option><option value="note">✎ メモ</option></select><input id="capture-date" class="date-input" type="date" aria-label="メモの日付" /><button class="primary-button" type="submit">保存する <span>↵</span></button></div></div>
+        <div class="capture-footer"><span class="capture-hint">⌘ / でいつでも入力</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">アイデア</option><option value="task">タスク</option><option value="plan">予定</option><option value="note">メモ</option></select><input id="capture-date" class="date-input" type="date" aria-label="メモの日付" /><button class="primary-button" type="submit">記録する <span>↵</span></button></div></div>
       </form>
     </section>
 
-    <section class="welcome-grid" aria-label="今日の記録状況">
-      <div class="welcome-card"><div class="welcome-copy"><p class="section-kicker">A LITTLE MOMENT</p><h2 id="daily-message">今日は何を残そう？</h2><p id="daily-submessage">小さなことほど、あとで自分を助けてくれます。</p></div><div class="sparkle">✦</div></div>
-      <div class="progress-card"><div class="progress-head"><span>今月の記憶</span><strong id="month-count">0件</strong></div><div class="progress-track"><span id="month-progress"></span></div><p id="streak-copy">まずはひとつ、今日の記録を。</p></div>
+    <section class="memory-overview" aria-label="記録の状況">
+      <article class="overview-card">
+        <p class="overview-label">今月の記憶</p><strong id="month-count">0件</strong>
+        <div class="progress-track"><span id="month-progress"></span></div><p id="streak-copy">まずはひとつ、今日の記録を。</p>
+      </article>
+      <article class="overview-card revisit-card" id="revisit-card"><div><p class="overview-label">FROM YOUR MEMORY</p><h3>ふと、思い出す</h3><p id="revisit-text"></p></div><button id="revisit-button" class="soft-button" type="button">もうひとつ</button></article>
     </section>
 
-    <section class="revisit-card" id="revisit-card"><div><p class="section-kicker">FROM YOUR MEMORY</p><h2>ふと、思い出してみる</h2><p id="revisit-text"></p></div><button id="revisit-button" class="soft-button" type="button">もうひとつ見る</button></section>
+    <section id="memory-workspace">
+      <div class="search-row" id="search-row" hidden><input id="search-input" type="search" placeholder="メモを検索…" aria-label="メモを検索" /><button id="search-close" class="ghost-button" aria-label="検索を閉じる">×</button></div>
+      <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button><button class="tab calendar-tab" role="tab" data-view="calendar">カレンダー</button></nav>
+      <section id="notes-section"><div class="section-heading"><div><p class="eyebrow">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
+      <section id="calendar-view" hidden><div class="calendar-toolbar"><button id="calendar-prev" class="ghost-button" type="button" aria-label="前の月">‹</button><h2 id="calendar-title"></h2><button id="calendar-next" class="ghost-button" type="button" aria-label="次の月">›</button></div><div class="calendar-actions"><p>予定メモをGoogleカレンダー用CSVへ</p><button id="export-calendar" class="soft-button" type="button">CSVを書き出す</button></div><div class="calendar-weekdays"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div><div id="calendar-grid" class="calendar-grid"></div><div id="calendar-detail" class="calendar-detail"></div></section>
+    </section>
 
-    <div class="search-row" id="search-row" hidden><input id="search-input" type="search" placeholder="メモを検索…" aria-label="メモを検索" /><button id="search-close" class="ghost-button" aria-label="検索を閉じる">×</button></div>
-    <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button><button class="tab calendar-tab" role="tab" data-view="calendar">カレンダー</button></nav>
-    <section id="notes-section"><div class="section-heading"><div><p class="section-kicker">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
-    <section id="calendar-view" hidden><div class="calendar-toolbar"><button id="calendar-prev" class="ghost-button" type="button" aria-label="前の月">‹</button><h2 id="calendar-title"></h2><button id="calendar-next" class="ghost-button" type="button" aria-label="次の月">›</button></div><div class="calendar-actions"><p>予定メモをGoogleカレンダー用CSVで書き出せます</p><button id="export-calendar" class="soft-button" type="button">CSVを書き出す ↓</button></div><div class="calendar-weekdays"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div><div id="calendar-grid" class="calendar-grid"></div><div id="calendar-detail" class="calendar-detail"></div></section>
     <section id="life-mode" hidden>
-      <div class="integrated-heading"><span class="section-kicker">ONE APP, TWO PERSPECTIVES</span><h2>人生タイマー</h2><p>残り時間を見つめながら、今日の記録とやりたいことをつなげます。</p></div>
+      <div class="life-cover"><p class="eyebrow">LIFE, WITH INTENTION</p><h2>人生タイマー</h2><p>残り時間を見つめて、今日を大切に使う。</p></div>
       <nav class="life-tabs" role="tablist" aria-label="人生タイマーの表示切り替え"><button class="life-tab active" data-life-view="timer" role="tab">わたし</button><button class="life-tab" data-life-view="insight" role="tab">見つめる</button><button class="life-tab" data-life-view="family" role="tab">家族</button><button class="life-tab" data-life-view="wishes" role="tab">やりたいこと</button></nav>
-      <section id="life-onboarding" class="life-panel" hidden><div class="life-intro-mark">◷</div><h3>残り時間を、夢の時間に</h3><p>誕生日を入れると、あなたの時間が動き出します。データはこの端末の中だけに保存されます。</p><form id="life-onboarding-form" class="life-form"><label>誕生日<input id="life-birth" type="date" required></label><label>性別<select id="life-gender" required><option value="">選択してください</option><option value="male">男性</option><option value="female">女性</option></select></label><button class="life-primary" type="submit">はじめる</button></form></section>
-      <section id="life-panel-timer" class="life-panel">
-        <div class="life-quote"><span>「</span><p id="life-quote-text">今日を、今日のぶんだけ。</p><small id="life-quote-author">記憶デスク</small></div>
-        <p class="life-label">あなたの残り時間</p><div id="life-countdown" class="life-countdown">プロフィールを設定してください</div><div class="life-progress"><span id="life-progress-bar"></span></div><p id="life-progress-text" class="life-muted"></p>
-        <div class="life-today-card"><p class="life-card-label">今日の宣言</p><form id="life-today-form" class="life-inline-form"><input id="life-today-input" maxlength="60" placeholder="今日やることを1つ"><button class="life-secondary" type="submit">決める</button></form><label id="life-today-set" class="life-check-row" hidden><input id="life-today-done" type="checkbox"><span id="life-today-text"></span><button id="life-today-clear" type="button" class="life-text-button">変更</button></label></div>
-        <div class="life-dream-card"><p class="life-card-label">今日の問い</p><p id="life-question">今日、残しておきたい一瞬は？</p><form id="life-reflection-form" class="life-inline-form"><input id="life-reflection-input" maxlength="100" placeholder="一言だけ残す"><button class="life-secondary" type="submit">残す</button></form></div>
-        <button id="life-profile-button" class="life-text-button" type="button">プロフィールを編集</button>
-      </section>
-      <section id="life-panel-insight" class="life-panel" hidden><div class="life-section-title"><div><p class="section-kicker">A DIFFERENT ANGLE</p><h3>時間を、別の単位で見る</h3></div></div><div id="life-insight-cards" class="life-insight-grid"></div><p class="life-muted life-footnote">呼吸・鼓動・確率は統計からのおおよその目安です。</p></section>
-      <section id="life-panel-family" class="life-panel" hidden><div class="life-section-title"><div><p class="section-kicker">PEOPLE YOU LOVE</p><h3>あと何回、会えるだろう</h3></div><button id="life-add-family" class="life-secondary" type="button">＋追加</button></div><div id="life-family-list" class="life-list"></div><form id="life-family-form" class="life-form life-form-row" hidden><input id="life-family-name" placeholder="名前" required maxlength="20"><input id="life-family-birth" type="date" required><select id="life-family-gender" required><option value="male">男性</option><option value="female">女性</option></select><select id="life-family-freq"><option value="monthly">月1回</option><option value="weekly">週1回</option><option value="yearly-1">年1回</option></select><button class="life-primary" type="submit">保存</button></form></section>
-      <section id="life-panel-wishes" class="life-panel" hidden><div class="life-section-title"><div><p class="section-kicker">THINGS TO DO</p><h3>やりたいことを、時間の味方に</h3></div></div><form id="life-wish-form" class="life-inline-form"><input id="life-wish-title" maxlength="50" placeholder="例：家族で沖縄に行く" required><input id="life-wish-age" type="number" min="1" max="150" placeholder="何歳までに"><button class="life-secondary" type="submit">追加</button></form><div id="life-wish-list" class="life-list"></div></section>
+      <section id="life-onboarding" class="life-panel" hidden><div class="life-intro-mark">◷</div><h3>残り時間を、夢の時間に</h3><p>誕生日を入れると、あなたの時間が動き出します。データはこの端末だけに保存されます。</p><form id="life-onboarding-form" class="life-form"><label>誕生日<input id="life-birth" type="date" required></label><label>性別<select id="life-gender" required><option value="">選択してください</option><option value="male">男性</option><option value="female">女性</option></select></label><button class="life-primary" type="submit">はじめる</button></form></section>
+      <section id="life-panel-timer" class="life-panel"><div class="life-quote"><span>“</span><p id="life-quote-text">今日を、今日のぶんだけ。</p><small id="life-quote-author">記憶デスク</small></div><p class="life-label">YOUR REMAINING TIME</p><div id="life-countdown" class="life-countdown">プロフィールを設定してください</div><div class="life-progress"><span id="life-progress-bar"></span></div><p id="life-progress-text" class="life-muted"></p><div class="life-today-card"><p class="life-card-label">今日の宣言</p><form id="life-today-form" class="life-inline-form"><input id="life-today-input" maxlength="60" placeholder="今日やることを1つ"><button class="life-secondary" type="submit">決める</button></form><label id="life-today-set" class="life-check-row" hidden><input id="life-today-done" type="checkbox"><span id="life-today-text"></span><button id="life-today-clear" type="button" class="life-text-button">変更</button></label></div><div class="life-dream-card"><p class="life-card-label">今日の問い</p><p id="life-question">今日、残しておきたい一瞬は？</p><form id="life-reflection-form" class="life-inline-form"><input id="life-reflection-input" maxlength="100" placeholder="一言だけ残す"><button class="life-secondary" type="submit">残す</button></form></div><button id="life-profile-button" class="life-text-button" type="button">プロフィールを編集</button></section>
+      <section id="life-panel-insight" class="life-panel" hidden><div class="life-section-title"><div><p class="eyebrow">A DIFFERENT ANGLE</p><h3>時間を、別の単位で見る</h3></div></div><div id="life-insight-cards" class="life-insight-grid"></div><p class="life-muted life-footnote">呼吸・鼓動・確率は統計からのおおよその目安です。</p></section>
+      <section id="life-panel-family" class="life-panel" hidden><div class="life-section-title"><div><p class="eyebrow">PEOPLE YOU LOVE</p><h3>あと何回、会えるだろう</h3></div><button id="life-add-family" class="life-secondary" type="button">＋追加</button></div><div id="life-family-list" class="life-list"></div><form id="life-family-form" class="life-form life-form-row" hidden><input id="life-family-name" placeholder="名前" required maxlength="20"><input id="life-family-birth" type="date" required><select id="life-family-gender" required><option value="male">男性</option><option value="female">女性</option></select><select id="life-family-freq"><option value="monthly">月1回</option><option value="weekly">週1回</option><option value="yearly-1">年1回</option></select><button class="life-primary" type="submit">保存</button></form></section>
+      <section id="life-panel-wishes" class="life-panel" hidden><div class="life-section-title"><div><p class="eyebrow">THINGS TO DO</p><h3>やりたいことを、時間の味方に</h3></div></div><form id="life-wish-form" class="life-inline-form"><input id="life-wish-title" maxlength="50" placeholder="例：家族で沖縄に行く" required><input id="life-wish-age" type="number" min="1" max="150" placeholder="何歳までに"><button class="life-secondary" type="submit">追加</button></form><div id="life-wish-list" class="life-list"></div></section>
     </section>
   </main>
   <script src="./life-timer/src/life-table.js"></script><script src="./life-timer/src/time-calc.js"></script><script src="./life-timer/src/insight.js"></script><script src="./life-timer/src/store.js"></script><script src="life-native.js"></script><script src="app.js"></script>
