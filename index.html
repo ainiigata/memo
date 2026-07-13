@@ -17,9 +17,17 @@
     <section class="capture-panel">
       <form id="capture-form">
         <textarea id="capture-input" aria-label="思いつきや予定を入力" placeholder="今、頭に浮かんだことをそのまま書く…&#10;例：来週の旅行、持ち物を考える"></textarea>
+        <div class="prompt-row" aria-label="入力のきっかけ"><button type="button" class="prompt-chip" data-prompt="今日、ちょっと嬉しかったこと：">✦ 今日のひとこと</button><button type="button" class="prompt-chip" data-prompt="あとで試したいこと：">↗ 試したいこと</button><button type="button" class="prompt-chip" data-prompt="忘れたくないこと：">◌ 忘れたくないこと</button></div>
         <div class="capture-footer"><span class="capture-hint">⌘ / でいつでもすぐ記録</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">💡 アイデア</option><option value="task">☑ タスク</option><option value="plan">◷ 予定</option><option value="note">✎ メモ</option></select><button class="primary-button" type="submit">保存する <span>↵</span></button></div></div>
       </form>
     </section>
+
+    <section class="welcome-grid" aria-label="今日の記録状況">
+      <div class="welcome-card"><div class="welcome-copy"><p class="section-kicker">A LITTLE MOMENT</p><h2 id="daily-message">今日は何を残そう？</h2><p id="daily-submessage">小さなことほど、あとで自分を助けてくれます。</p></div><div class="sparkle">✦</div></div>
+      <div class="progress-card"><div class="progress-head"><span>今月の記憶</span><strong id="month-count">0件</strong></div><div class="progress-track"><span id="month-progress"></span></div><p id="streak-copy">まずはひとつ、今日の記録を。</p></div>
+    </section>
+
+    <section class="revisit-card" id="revisit-card"><div><p class="section-kicker">FROM YOUR MEMORY</p><h2>ふと、思い出してみる</h2><p id="revisit-text"></p></div><button id="revisit-button" class="soft-button" type="button">もうひとつ見る</button></section>
 
     <div class="search-row" id="search-row" hidden><input id="search-input" type="search" placeholder="メモを検索…" aria-label="メモを検索" /><button id="search-close" class="ghost-button" aria-label="検索を閉じる">×</button></div>
     <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button></nav>
