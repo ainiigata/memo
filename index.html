@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f7f5f0" />
+  <title>記憶デスク</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">今日の記憶デスク</p><h1>おかえりなさい、山田さん</h1></div></div>
+      <div class="top-actions"><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
+    </header>
+
+    <section class="capture-panel">
+      <form id="capture-form">
+        <textarea id="capture-input" aria-label="思いつきや予定を入力" placeholder="今、頭に浮かんだことをそのまま書く…&#10;例：来週の旅行、持ち物を考える"></textarea>
+        <div class="capture-footer"><span class="capture-hint">⌘ / でいつでもすぐ記録</span><div class="capture-actions"><select id="capture-type" aria-label="メモの種類"><option value="idea">💡 アイデア</option><option value="task">☑ タスク</option><option value="plan">◷ 予定</option><option value="note">✎ メモ</option></select><button class="primary-button" type="submit">保存する <span>↵</span></button></div></div>
+      </form>
+    </section>
+
+    <div class="search-row" id="search-row" hidden><input id="search-input" type="search" placeholder="メモを検索…" aria-label="メモを検索" /><button id="search-close" class="ghost-button" aria-label="検索を閉じる">×</button></div>
+    <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button></nav>
+    <section><div class="section-heading"><div><p class="section-kicker">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
