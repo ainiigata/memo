@@ -11,7 +11,7 @@
   <main class="app-shell">
     <header class="topbar">
       <div class="brand"><span class="brand-mark">✦</span><div><p class="eyebrow">今日の記憶デスク</p><h1>おかえりなさい、山田さん</h1></div></div>
-      <div class="top-actions"><a class="mode-link" href="./life-timer/index.html">人生タイマー ↗</a><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
+      <div class="top-actions"><button class="mode-link" id="life-mode-toggle" type="button">人生タイマー ◇</button><button class="ghost-button" id="search-toggle" aria-label="検索">⌕</button><button class="ghost-button" aria-label="メニュー">⋯</button></div>
     </header>
 
     <section class="capture-panel">
@@ -33,6 +33,7 @@
     <nav class="tabs" role="tablist" aria-label="表示切り替え"><button class="tab active" role="tab" data-view="inbox">受信箱 <span id="inbox-count">0</span></button><button class="tab" role="tab" data-view="today">今日</button><button class="tab" role="tab" data-view="all">すべて</button><button class="tab calendar-tab" role="tab" data-view="calendar">カレンダー</button></nav>
     <section id="notes-section"><div class="section-heading"><div><p class="section-kicker">MEMORY STREAM</p><h2 id="section-title">あとで整理する</h2></div><span id="section-subtitle"></span></div><div id="items" class="items" aria-live="polite"></div></section>
     <section id="calendar-view" hidden><div class="calendar-toolbar"><button id="calendar-prev" class="ghost-button" type="button" aria-label="前の月">‹</button><h2 id="calendar-title"></h2><button id="calendar-next" class="ghost-button" type="button" aria-label="次の月">›</button></div><div class="calendar-actions"><p>予定メモをGoogleカレンダー用CSVで書き出せます</p><button id="export-calendar" class="soft-button" type="button">CSVを書き出す ↓</button></div><div class="calendar-weekdays"><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span></div><div id="calendar-grid" class="calendar-grid"></div><div id="calendar-detail" class="calendar-detail"></div></section>
+    <section id="life-mode" hidden><div class="integrated-heading"><span class="section-kicker">ONE APP, TWO PERSPECTIVES</span><h2>人生タイマー</h2><p>残り時間を見つめながら、今日の記録とやりたいことをつなげます。</p></div><iframe id="life-frame" title="人生タイマー" src="./life-timer/index.html"></iframe></section>
   </main>
   <script src="app.js"></script>
 </body>

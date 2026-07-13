@@ -10,6 +10,7 @@ let view = 'inbox';
 let revisitIndex = 0;
 let calendarDate = new Date();
 let selectedDate = toISODate(new Date());
+let lifeMode = false;
 const $ = (selector) => document.querySelector(selector);
 const save = () => localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
 const now = new Date();
@@ -67,6 +68,7 @@ $('#items').addEventListener('click', (event) => { const button = event.target.c
 $('#search-toggle').addEventListener('click', () => { const row = $('#search-row'); row.hidden = !row.hidden; if (!row.hidden) $('#search-input').focus(); });
 $('#search-close').addEventListener('click', () => { $('#search-row').hidden = true; $('#search-input').value = ''; render(); });
 $('#search-input').addEventListener('input', render);
+$('#life-mode-toggle').addEventListener('click', () => { lifeMode = !lifeMode; const hideInMemory = ['.capture-panel', '.welcome-grid', '.revisit-card', '.search-row', '.tabs', '#notes-section', '#calendar-view']; hideInMemory.forEach((selector) => { const element = $(selector); if (element) element.hidden = lifeMode; }); $('#life-mode').hidden = !lifeMode; $('#life-mode-toggle').textContent = lifeMode ? '記憶デスクへ ✦' : '人生タイマー ◇'; });
 document.querySelector('.prompt-row').addEventListener('click', (event) => { const chip = event.target.closest('.prompt-chip'); if (!chip) return; const input = $('#capture-input'); input.value = chip.dataset.prompt; input.focus(); });
 $('#revisit-button').addEventListener('click', () => { revisitIndex += 1; render(); });
 function showSavedFeedback() { const button = document.querySelector('.primary-button'); const original = button.innerHTML; button.innerHTML = '記録しました ✦'; button.classList.add('saved'); setTimeout(() => { button.innerHTML = original; button.classList.remove('saved'); }, 1400); }
