@@ -1,8 +1,8 @@
 /* 人生タイマー Service Worker
    - ページ遷移はネットワーク優先(新バージョンを即配信、オフライン時のみキャッシュ)
    - その他アセットはキャッシュ優先
-   - a697a3ff はビルド時にコンテンツハッシュへ置換され、デプロイごとに旧キャッシュを破棄する */
-const CACHE = 'life-timer-a697a3ff';
+   - 33749868 はビルド時にコンテンツハッシュへ置換され、デプロイごとに旧キャッシュを破棄する */
+const CACHE = 'life-timer-33749868';
 const ASSETS = ['./', './index.html', './manifest.json', './icon.svg', './icon-maskable.svg'];
 
 self.addEventListener('install', (e) => {
